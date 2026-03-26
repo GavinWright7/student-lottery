@@ -38,7 +38,7 @@ STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY")
 CSV_FILE = "student_directory_names.csv"
 DB_FILE = "lottery.db"
 FREE_SPINS = 3
-SPIN_PRICE_CENTS = 5000  # $50.00
+SPIN_PRICE_CENTS = 99  # $0.99
 EXTRA_SPINS_PER_PURCHASE = 10
 
 # ---------------------------------------------------------------------------
