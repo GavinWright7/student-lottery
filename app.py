@@ -37,7 +37,9 @@ app.secret_key = os.environ.get("FLASK_SECRET", "change-me")
 
 STRIPE_SECRET_KEY = os.environ.get("STRIPE_SECRET_KEY")
 STRIPE_PUBLISHABLE_KEY = os.environ.get("STRIPE_PUBLISHABLE_KEY")
-DATABASE_URL = os.environ.get("DATABASE_URL")
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
+if "channel_binding" in DATABASE_URL:
+    DATABASE_URL = DATABASE_URL.split("&channel_binding")[0]
 
 CSV_FILE = "student_directory_names.csv"
 FREE_SPINS = 3
