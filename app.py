@@ -157,12 +157,31 @@ def api_spin():
     if winner not in reel:
         reel[-1] = winner
 
+    # Assign rarity: 70% common (grey), 20% uncommon (green), 10% rare (gold)
+    roll = random.random()
+    if roll < 0.10:
+        rarity = "rare"
+    elif roll < 0.30:
+        rarity = "uncommon"
+    else:
+        rarity = "common"
+
+    # Check if the spin landed on today's midnight lottery winner
+    jackpot = False
+    today = draw_todays_winner()
+    if today and winner == today["name"]:
+        jackpot = True
+        rarity = "jackpot"
+        session["spins_allowed"] = session.get("spins_allowed", FREE_SPINS) + 100
+
     session["spins_used"] += 1
     session.modified = True
 
     return jsonify({
         "winner": winner,
         "reel": reel,
+        "rarity": rarity,
+        "jackpot": jackpot,
         "spins_used": session["spins_used"],
         "spins_allowed": session["spins_allowed"],
     })

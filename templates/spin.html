@@ -16,7 +16,6 @@
     display:flex;flex-direction:column;align-items:center;
   }
 
-  /* ---- Nav ---- */
   nav{
     width:100%;padding:1rem 2rem;
     display:flex;justify-content:center;gap:2rem;
@@ -28,7 +27,6 @@
   }
   nav a:hover,nav a.active{background:rgba(139,92,246,.3);color:#fff}
 
-  /* ---- Main ---- */
   .container{
     flex:1;display:flex;flex-direction:column;align-items:center;
     justify-content:center;padding:2rem;gap:2rem;max-width:600px;width:100%;
@@ -43,6 +41,7 @@
     border:2px solid rgba(139,92,246,.4);border-radius:16px;
     overflow:hidden;position:relative;height:80px;
     display:flex;align-items:center;justify-content:center;
+    transition:border-color .4s, box-shadow .4s;
   }
   .reel{
     position:absolute;top:0;left:0;width:100%;
@@ -53,10 +52,76 @@
     font-size:1.5rem;font-weight:600;white-space:nowrap;
   }
   .winner-display{
-    font-size:1.6rem;font-weight:800;color:#a78bfa;
+    font-size:1.6rem;font-weight:800;
     text-align:center;opacity:0;transition:opacity .4s;
   }
   .winner-display.visible{opacity:1}
+
+  /* ---- Rarity colors ---- */
+  .reel-wrapper.rarity-common{
+    border-color:rgba(148,163,184,.5);
+    box-shadow:0 0 20px rgba(148,163,184,.15);
+  }
+  .winner-display.rarity-common{color:#94a3b8}
+
+  .reel-wrapper.rarity-uncommon{
+    border-color:rgba(52,211,153,.6);
+    box-shadow:0 0 25px rgba(52,211,153,.3);
+  }
+  .winner-display.rarity-uncommon{color:#34d399}
+
+  .reel-wrapper.rarity-rare{
+    border-color:rgba(251,191,36,.7);
+    box-shadow:0 0 40px rgba(251,191,36,.5), 0 0 80px rgba(251,191,36,.2);
+    animation:goldPulse 1.5s ease-in-out infinite;
+  }
+  .winner-display.rarity-rare{
+    color:#fbbf24;
+    text-shadow:0 0 15px rgba(251,191,36,.7), 0 0 30px rgba(251,191,36,.4);
+  }
+
+  @keyframes goldPulse{
+    0%,100%{box-shadow:0 0 40px rgba(251,191,36,.5), 0 0 80px rgba(251,191,36,.2)}
+    50%{box-shadow:0 0 60px rgba(251,191,36,.7), 0 0 120px rgba(251,191,36,.35)}
+  }
+
+  .reel-wrapper.rarity-jackpot{
+    border-color:rgba(168,85,247,.8);
+    box-shadow:0 0 50px rgba(168,85,247,.6), 0 0 100px rgba(251,191,36,.4);
+    animation:jackpotPulse 1s ease-in-out infinite;
+  }
+  .winner-display.rarity-jackpot{
+    color:#e879f9;
+    text-shadow:0 0 20px rgba(168,85,247,.8), 0 0 40px rgba(251,191,36,.5);
+  }
+  .rarity-label.rarity-jackpot{color:#e879f9;background:rgba(168,85,247,.2)}
+
+  @keyframes jackpotPulse{
+    0%,100%{box-shadow:0 0 50px rgba(168,85,247,.6), 0 0 100px rgba(251,191,36,.4)}
+    50%{box-shadow:0 0 80px rgba(168,85,247,.8), 0 0 150px rgba(251,191,36,.6)}
+  }
+
+  .jackpot-banner{
+    display:none;flex-direction:column;align-items:center;gap:.8rem;
+    background:linear-gradient(145deg,rgba(168,85,247,.15),rgba(251,191,36,.1));
+    border:2px solid rgba(168,85,247,.5);border-radius:16px;
+    padding:1.5rem 2rem;width:100%;text-align:center;
+    animation:jackpotPulse 1.5s ease-in-out infinite;
+  }
+  .jackpot-banner.show{display:flex}
+  .jackpot-banner h2{font-size:1.4rem;font-weight:800;color:#e879f9}
+  .jackpot-banner p{color:#c4b5fd;font-size:1rem}
+
+  /* ---- Rarity label ---- */
+  .rarity-label{
+    font-size:.85rem;font-weight:700;text-transform:uppercase;
+    letter-spacing:.1em;opacity:0;transition:opacity .4s;
+    padding:.3rem .8rem;border-radius:6px;
+  }
+  .rarity-label.visible{opacity:1}
+  .rarity-label.rarity-common{color:#94a3b8;background:rgba(148,163,184,.1)}
+  .rarity-label.rarity-uncommon{color:#34d399;background:rgba(52,211,153,.1)}
+  .rarity-label.rarity-rare{color:#fbbf24;background:rgba(251,191,36,.15)}
 
   /* ---- Spin button ---- */
   .spin-btn{
@@ -71,7 +136,6 @@
   .spin-btn:active{transform:translateY(0)}
   .spin-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
 
-  /* ---- Spin counter ---- */
   .spin-info{
     display:flex;gap:1.5rem;align-items:center;justify-content:center;flex-wrap:wrap;
   }
@@ -81,7 +145,6 @@
   }
   .spin-badge em{font-style:normal;color:#a78bfa}
 
-  /* ---- Paywall card ---- */
   .paywall{
     display:none;flex-direction:column;align-items:center;gap:1.2rem;
     background:rgba(255,255,255,.08);border:1px solid rgba(139,92,246,.35);
@@ -99,7 +162,6 @@
   }
   .pay-btn:hover{transform:translateY(-2px)}
 
-  /* ---- Footer ---- */
   footer{padding:1.5rem;text-align:center;color:#475569;font-size:.8rem}
 </style>
 </head>
@@ -119,6 +181,8 @@
     <div class="winner-display" id="winnerDisplay"></div>
   </div>
 
+  <span class="rarity-label" id="rarityLabel"></span>
+
   <div class="spin-info">
     <div class="spin-badge">Spins used: <em id="spinsUsed">{{ spins_used }}</em> / <em id="spinsAllowed">{{ spins_allowed }}</em></div>
   </div>
@@ -126,6 +190,11 @@
   <button class="spin-btn" id="spinBtn" onclick="doSpin()">
     SPIN
   </button>
+
+  <div class="jackpot-banner" id="jackpotBanner">
+    <h2>JACKPOT! You matched today's lottery winner!</h2>
+    <p>+100 free spins added!</p>
+  </div>
 
   <div class="paywall" id="paywall">
     <h2>Out of spins!</h2>
@@ -145,6 +214,31 @@
   const winnerEl = document.getElementById('winnerDisplay');
   const spinBtn = document.getElementById('spinBtn');
   const paywall = document.getElementById('paywall');
+  const reelWrapper = document.getElementById('reelWrapper');
+  const rarityLabel = document.getElementById('rarityLabel');
+
+  const jackpotBanner = document.getElementById('jackpotBanner');
+  const rarityNames = {common: 'Common', uncommon: 'Uncommon', rare: 'Rare', jackpot: 'JACKPOT'};
+  const allRarities = ['rarity-common', 'rarity-uncommon', 'rarity-rare', 'rarity-jackpot'];
+
+  function clearRarity() {
+    allRarities.forEach(c => {
+      reelWrapper.classList.remove(c);
+      winnerEl.classList.remove(c);
+      rarityLabel.classList.remove(c);
+    });
+    rarityLabel.classList.remove('visible');
+    rarityLabel.textContent = '';
+    jackpotBanner.classList.remove('show');
+  }
+
+  function showRarity(rarity, isJackpot) {
+    reelWrapper.classList.add('rarity-' + rarity);
+    winnerEl.classList.add('rarity-' + rarity);
+    rarityLabel.textContent = rarityNames[rarity] || rarity;
+    rarityLabel.classList.add('rarity-' + rarity, 'visible');
+    if (isJackpot) jackpotBanner.classList.add('show');
+  }
 
   function updateUI() {
     document.getElementById('spinsUsed').textContent = spinsUsed;
@@ -171,6 +265,7 @@
     spinBtn.disabled = true;
     winnerEl.classList.remove('visible');
     winnerEl.textContent = '';
+    clearRarity();
 
     const res = await fetch('/api/spin', {method: 'POST'});
     if (res.status === 403) {
@@ -212,6 +307,7 @@
     reelEl.innerHTML = '';
     winnerEl.textContent = data.winner;
     winnerEl.classList.add('visible');
+    showRarity(data.rarity, data.jackpot);
 
     spinsUsed = data.spins_used;
     spinsAllowed = data.spins_allowed;
