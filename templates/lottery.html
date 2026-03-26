@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Midnight Lottery — $1,000</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);
+    color:#fff;display:flex;flex-direction:column;align-items:center;
+  }
+
+  /* ---- Nav ---- */
+  nav{
+    width:100%;padding:1rem 2rem;
+    display:flex;justify-content:center;gap:2rem;
+    background:rgba(255,255,255,.06);backdrop-filter:blur(10px);
+  }
+  nav a{
+    color:#c4b5fd;text-decoration:none;font-weight:600;font-size:.95rem;
+    padding:.5rem 1.2rem;border-radius:8px;transition:.2s;
+  }
+  nav a:hover,nav a.active{background:rgba(139,92,246,.3);color:#fff}
+
+  .container{
+    flex:1;display:flex;flex-direction:column;align-items:center;
+    padding:3rem 2rem;gap:2.5rem;max-width:700px;width:100%;
+  }
+
+  h1{font-size:2.6rem;font-weight:800;text-align:center;line-height:1.15}
+  h1 span{color:#fbbf24}
+  .subtitle{color:#94a3b8;text-align:center;font-size:1.05rem;margin-top:-.8rem}
+
+  /* ---- Countdown ---- */
+  .countdown-section{text-align:center}
+  .countdown-label{font-size:.9rem;color:#94a3b8;margin-bottom:.6rem;text-transform:uppercase;letter-spacing:.08em}
+  .countdown{display:flex;gap:1rem;justify-content:center}
+  .countdown .unit{
+    background:rgba(255,255,255,.08);border:1px solid rgba(251,191,36,.25);
+    border-radius:12px;padding:.8rem 1.2rem;min-width:70px;text-align:center;
+  }
+  .countdown .num{font-size:2rem;font-weight:800;color:#fbbf24}
+  .countdown .lbl{font-size:.7rem;color:#94a3b8;text-transform:uppercase;margin-top:.2rem}
+
+  /* ---- Winner card ---- */
+  .winner-card{
+    width:100%;background:linear-gradient(145deg,rgba(251,191,36,.12),rgba(251,191,36,.04));
+    border:2px solid rgba(251,191,36,.35);border-radius:20px;
+    padding:2.5rem 2rem;text-align:center;position:relative;overflow:hidden;
+  }
+  .winner-card::before{
+    content:'';position:absolute;top:-40%;left:-40%;width:180%;height:180%;
+    background:radial-gradient(circle,rgba(251,191,36,.08) 0%,transparent 60%);
+    pointer-events:none;
+  }
+  .winner-card .trophy{font-size:3.5rem;margin-bottom:.8rem}
+  .winner-card .prize{font-size:1rem;color:#fbbf24;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
+  .winner-card .name{font-size:2rem;font-weight:800;margin:.6rem 0;line-height:1.2}
+  .winner-card .date{font-size:.85rem;color:#94a3b8}
+
+  /* ---- History ---- */
+  .history{width:100%}
+  .history h2{font-size:1.1rem;font-weight:700;margin-bottom:1rem;color:#94a3b8}
+  .history-list{display:flex;flex-direction:column;gap:.6rem}
+  .history-item{
+    display:flex;justify-content:space-between;align-items:center;
+    background:rgba(255,255,255,.06);border-radius:10px;padding:.75rem 1.2rem;
+  }
+  .history-item .h-name{font-weight:600;font-size:.95rem}
+  .history-item .h-date{font-size:.8rem;color:#64748b}
+
+  footer{padding:1.5rem;text-align:center;color:#475569;font-size:.8rem}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/spin">Spin</a>
+  <a href="/lottery" class="active">Midnight Lottery</a>
+</nav>
+
+<div class="container">
+  <h1>Midnight <span>$1,000</span> Lottery</h1>
+  <p class="subtitle">One student is randomly selected every night at 12:00 AM</p>
+
+  <!-- Countdown to next midnight -->
+  <div class="countdown-section">
+    <div class="countdown-label">Next drawing in</div>
+    <div class="countdown" id="countdown">
+      <div class="unit"><div class="num" id="cdH">--</div><div class="lbl">Hours</div></div>
+      <div class="unit"><div class="num" id="cdM">--</div><div class="lbl">Min</div></div>
+      <div class="unit"><div class="num" id="cdS">--</div><div class="lbl">Sec</div></div>
+    </div>
+  </div>
+
+  <!-- Today's winner -->
+  <div class="winner-card">
+    <div class="trophy">&#127942;</div>
+    <div class="prize">Today's $1,000 Winner</div>
+    <div class="name">{{ winner.name }}</div>
+    <div class="date">{{ winner.draw_date }}</div>
+  </div>
+
+  <!-- Recent winners -->
+  {% if recent|length > 1 %}
+  <div class="history">
+    <h2>Recent Winners</h2>
+    <div class="history-list">
+      {% for w in recent %}
+      <div class="history-item">
+        <span class="h-name">{{ w.name }}</span>
+        <span class="h-date">{{ w.draw_date }}</span>
+      </div>
+      {% endfor %}
+    </div>
+  </div>
+  {% endif %}
+</div>
+
+<footer>&copy; 2026 Student Lottery</footer>
+
+<script>
+  function updateCountdown() {
+    const now = new Date();
+    const tomorrow = new Date(now);
+    tomorrow.setDate(tomorrow.getDate() + 1);
+    tomorrow.setHours(0, 0, 0, 0);
+    const diff = tomorrow - now;
+    const h = Math.floor(diff / 3600000);
+    const m = Math.floor((diff % 3600000) / 60000);
+    const s = Math.floor((diff % 60000) / 1000);
+    document.getElementById('cdH').textContent = String(h).padStart(2, '0');
+    document.getElementById('cdM').textContent = String(m).padStart(2, '0');
+    document.getElementById('cdS').textContent = String(s).padStart(2, '0');
+  }
+  updateCountdown();
+  setInterval(updateCountdown, 1000);
+</script>
+</body>
+</html>

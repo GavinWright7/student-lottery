@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Student Spinner</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:'Inter',sans-serif;
+    min-height:100vh;
+    background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);
+    color:#fff;
+    display:flex;flex-direction:column;align-items:center;
+  }
+
+  /* ---- Nav ---- */
+  nav{
+    width:100%;padding:1rem 2rem;
+    display:flex;justify-content:center;gap:2rem;
+    background:rgba(255,255,255,.06);backdrop-filter:blur(10px);
+  }
+  nav a{
+    color:#c4b5fd;text-decoration:none;font-weight:600;font-size:.95rem;
+    padding:.5rem 1.2rem;border-radius:8px;transition:.2s;
+  }
+  nav a:hover,nav a.active{background:rgba(139,92,246,.3);color:#fff}
+
+  /* ---- Main ---- */
+  .container{
+    flex:1;display:flex;flex-direction:column;align-items:center;
+    justify-content:center;padding:2rem;gap:2rem;max-width:600px;width:100%;
+  }
+  h1{font-size:2.4rem;font-weight:800;text-align:center;line-height:1.2}
+  h1 span{color:#a78bfa}
+  .subtitle{color:#94a3b8;text-align:center;font-size:1rem;margin-top:-.5rem}
+
+  /* ---- Reel window ---- */
+  .reel-wrapper{
+    width:100%;background:rgba(255,255,255,.07);
+    border:2px solid rgba(139,92,246,.4);border-radius:16px;
+    overflow:hidden;position:relative;height:80px;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .reel{
+    position:absolute;top:0;left:0;width:100%;
+    transition:transform .1s linear;
+  }
+  .reel-item{
+    height:80px;display:flex;align-items:center;justify-content:center;
+    font-size:1.5rem;font-weight:600;white-space:nowrap;
+  }
+  .winner-display{
+    font-size:1.6rem;font-weight:800;color:#a78bfa;
+    text-align:center;opacity:0;transition:opacity .4s;
+  }
+  .winner-display.visible{opacity:1}
+
+  /* ---- Spin button ---- */
+  .spin-btn{
+    width:100%;max-width:320px;padding:1rem 2rem;font-size:1.2rem;font-weight:700;
+    border:none;border-radius:12px;cursor:pointer;
+    background:linear-gradient(135deg,#7c3aed,#a78bfa);
+    color:#fff;box-shadow:0 4px 24px rgba(124,58,237,.5);
+    transition:transform .15s,box-shadow .15s;
+    letter-spacing:.02em;
+  }
+  .spin-btn:hover{transform:translateY(-2px);box-shadow:0 6px 30px rgba(124,58,237,.6)}
+  .spin-btn:active{transform:translateY(0)}
+  .spin-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
+
+  /* ---- Spin counter ---- */
+  .spin-info{
+    display:flex;gap:1.5rem;align-items:center;justify-content:center;flex-wrap:wrap;
+  }
+  .spin-badge{
+    background:rgba(255,255,255,.1);padding:.5rem 1rem;border-radius:8px;
+    font-size:.9rem;font-weight:600;
+  }
+  .spin-badge em{font-style:normal;color:#a78bfa}
+
+  /* ---- Paywall card ---- */
+  .paywall{
+    display:none;flex-direction:column;align-items:center;gap:1.2rem;
+    background:rgba(255,255,255,.08);border:1px solid rgba(139,92,246,.35);
+    border-radius:16px;padding:2rem;width:100%;text-align:center;
+  }
+  .paywall.show{display:flex}
+  .paywall h2{font-size:1.3rem;font-weight:700}
+  .paywall p{color:#94a3b8;font-size:.95rem;line-height:1.5}
+  .pay-btn{
+    padding:.85rem 2.5rem;font-size:1rem;font-weight:700;
+    border:none;border-radius:10px;cursor:pointer;
+    background:linear-gradient(135deg,#059669,#34d399);
+    color:#fff;box-shadow:0 4px 20px rgba(5,150,105,.4);
+    transition:transform .15s;
+  }
+  .pay-btn:hover{transform:translateY(-2px)}
+
+  /* ---- Footer ---- */
+  footer{padding:1.5rem;text-align:center;color:#475569;font-size:.8rem}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/spin" class="active">Spin</a>
+  <a href="/lottery">Midnight Lottery</a>
+</nav>
+
+<div class="container">
+  <h1>Student <span>Spinner</span></h1>
+  <p class="subtitle">Spin to reveal a random student name</p>
+
+  <div class="reel-wrapper" id="reelWrapper">
+    <div class="reel" id="reel"></div>
+    <div class="winner-display" id="winnerDisplay"></div>
+  </div>
+
+  <div class="spin-info">
+    <div class="spin-badge">Spins used: <em id="spinsUsed">{{ spins_used }}</em> / <em id="spinsAllowed">{{ spins_allowed }}</em></div>
+  </div>
+
+  <button class="spin-btn" id="spinBtn" onclick="doSpin()">
+    SPIN
+  </button>
+
+  <div class="paywall" id="paywall">
+    <h2>Out of spins!</h2>
+    <p>Purchase 10 more spins for $50 to keep going.</p>
+    <button class="pay-btn" onclick="buySpins()">Buy 10 Spins — $50</button>
+  </div>
+</div>
+
+<footer>&copy; 2026 Student Lottery</footer>
+
+<script>
+  let spinning = false;
+  let spinsUsed = {{ spins_used }};
+  let spinsAllowed = {{ spins_allowed }};
+
+  const reelEl = document.getElementById('reel');
+  const winnerEl = document.getElementById('winnerDisplay');
+  const spinBtn = document.getElementById('spinBtn');
+  const paywall = document.getElementById('paywall');
+
+  function updateUI() {
+    document.getElementById('spinsUsed').textContent = spinsUsed;
+    document.getElementById('spinsAllowed').textContent = spinsAllowed;
+    if (spinsUsed >= spinsAllowed) {
+      spinBtn.disabled = true;
+      paywall.classList.add('show');
+    }
+  }
+
+  async function buySpins() {
+    const res = await fetch('/create-checkout-session', {method: 'POST'});
+    const data = await res.json();
+    if (data.url) {
+      window.location.href = data.url;
+    } else {
+      alert('Payment error: ' + (data.error || 'unknown'));
+    }
+  }
+
+  async function doSpin() {
+    if (spinning || spinsUsed >= spinsAllowed) return;
+    spinning = true;
+    spinBtn.disabled = true;
+    winnerEl.classList.remove('visible');
+    winnerEl.textContent = '';
+
+    const res = await fetch('/api/spin', {method: 'POST'});
+    if (res.status === 403) {
+      spinning = false;
+      updateUI();
+      return;
+    }
+    const data = await res.json();
+
+    const reel = data.reel;
+    reelEl.innerHTML = '';
+    reel.forEach(name => {
+      const div = document.createElement('div');
+      div.className = 'reel-item';
+      div.textContent = name;
+      reelEl.appendChild(div);
+    });
+
+    const itemH = 80;
+    const total = reel.length;
+    let idx = 0;
+    reelEl.style.transition = 'none';
+    reelEl.style.transform = 'translateY(0)';
+
+    await new Promise(resolve => {
+      let speed = 50;
+      function tick() {
+        idx++;
+        if (idx >= total) { resolve(); return; }
+        reelEl.style.transition = `transform ${speed}ms linear`;
+        reelEl.style.transform = `translateY(-${idx * itemH}px)`;
+        if (idx > total - 6) speed += 40;
+        else if (idx > total - 10) speed += 15;
+        setTimeout(tick, speed);
+      }
+      tick();
+    });
+
+    reelEl.innerHTML = '';
+    winnerEl.textContent = data.winner;
+    winnerEl.classList.add('visible');
+
+    spinsUsed = data.spins_used;
+    spinsAllowed = data.spins_allowed;
+    spinning = false;
+    spinBtn.disabled = false;
+    updateUI();
+  }
+
+  updateUI();
+</script>
+</body>
+</html>
