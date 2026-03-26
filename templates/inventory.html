@@ -1,0 +1,145 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inventory — Student Lottery</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:'Inter',sans-serif;min-height:100vh;
+    background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);
+    color:#fff;display:flex;flex-direction:column;align-items:center;
+  }
+
+  nav{
+    width:100%;padding:1rem 2rem;
+    display:flex;justify-content:center;gap:2rem;
+    background:rgba(255,255,255,.06);backdrop-filter:blur(10px);
+  }
+  nav a{
+    color:#c4b5fd;text-decoration:none;font-weight:600;font-size:.95rem;
+    padding:.5rem 1.2rem;border-radius:8px;transition:.2s;
+  }
+  nav a:hover,nav a.active{background:rgba(139,92,246,.3);color:#fff}
+
+  .container{
+    flex:1;display:flex;flex-direction:column;align-items:center;
+    padding:2rem;gap:1.5rem;max-width:650px;width:100%;
+  }
+  h1{font-size:2rem;font-weight:800;text-align:center}
+  h1 span{color:#a78bfa}
+  .stats{color:#94a3b8;font-size:.9rem;text-align:center}
+  .stats em{font-style:normal;color:#a78bfa;font-weight:700}
+
+  .grid{width:100%;display:flex;flex-direction:column;gap:.7rem}
+  .card{
+    display:flex;align-items:center;justify-content:space-between;
+    padding:1rem 1.2rem;border-radius:12px;
+    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
+    transition:border-color .3s;
+  }
+  .card .info{display:flex;flex-direction:column;gap:.2rem}
+  .card .card-name{font-weight:700;font-size:1.05rem}
+  .card .card-rarity{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
+
+  .card.rarity-common{border-color:rgba(148,163,184,.3)}
+  .card.rarity-common .card-rarity{color:#94a3b8}
+
+  .card.rarity-rare{border-color:rgba(96,165,250,.4)}
+  .card.rarity-rare .card-rarity{color:#60a5fa}
+
+  .card.rarity-epic{border-color:rgba(168,85,247,.4)}
+  .card.rarity-epic .card-rarity{color:#a855f7}
+
+  .card.rarity-legendary{border-color:rgba(251,191,36,.4);box-shadow:0 0 15px rgba(251,191,36,.15)}
+  .card.rarity-legendary .card-rarity{color:#fbbf24}
+
+  .trade-btn{
+    padding:.5rem 1rem;font-size:.8rem;font-weight:700;border:none;border-radius:8px;
+    cursor:pointer;transition:transform .15s;color:#fff;
+  }
+  .trade-btn:hover{transform:translateY(-1px)}
+  .trade-btn.rarity-common{background:rgba(148,163,184,.25)}
+  .trade-btn.rarity-rare{background:rgba(96,165,250,.3)}
+  .trade-btn.rarity-epic{background:rgba(168,85,247,.3)}
+  .trade-btn.rarity-legendary{background:rgba(251,191,36,.3)}
+
+  .empty{text-align:center;color:#64748b;padding:3rem 1rem;font-size:1rem}
+
+  .toast{
+    position:fixed;top:1.5rem;left:50%;transform:translateX(-50%) translateY(-100px);
+    background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.4);color:#34d399;
+    padding:.7rem 1.5rem;border-radius:10px;font-weight:600;font-size:.9rem;
+    transition:transform .3s ease;z-index:100;
+  }
+  .toast.show{transform:translateX(-50%) translateY(0)}
+
+  footer{padding:1.5rem;text-align:center;color:#475569;font-size:.8rem}
+</style>
+</head>
+<body>
+
+<nav>
+  <a href="/spin">Spin</a>
+  <a href="/lottery">Lottery</a>
+  <a href="/inventory" class="active">Inventory</a>
+  <a href="/logout">Logout</a>
+</nav>
+
+<div class="container">
+  <h1>Your <span>Inventory</span></h1>
+  <p class="stats"><em>{{ items|length }}</em> / 10 slots used &nbsp;|&nbsp; <em id="spinsCount">{{ spins_remaining }}</em> spins remaining</p>
+
+  <div class="grid" id="grid">
+    {% if items %}
+      {% for item in items %}
+      <div class="card rarity-{{ item.rarity }}" id="card-{{ item.id }}">
+        <div class="info">
+          <span class="card-name">{{ item.name }}</span>
+          <span class="card-rarity">{{ item.rarity }}</span>
+        </div>
+        <button class="trade-btn rarity-{{ item.rarity }}" onclick="tradeItem({{ item.id }}, '{{ item.rarity }}')">
+          Trade for {{ trade_values.get(item.rarity, 1) }} spins
+        </button>
+      </div>
+      {% endfor %}
+    {% else %}
+      <div class="empty">Your inventory is empty. Spin and save names to collect them here!</div>
+    {% endif %}
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<footer>&copy; 2026 Student Lottery</footer>
+
+<script>
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  async function tradeItem(id, rarity) {
+    if (!confirm('Trade this ' + rarity + ' name for spins?')) return;
+    const res = await fetch('/api/trade/' + id, {method: 'POST'});
+    const data = await res.json();
+    if (data.success) {
+      document.getElementById('card-' + id).remove();
+      document.getElementById('spinsCount').textContent = data.spins_remaining;
+      showToast('+' + data.spins_gained + ' spins!');
+      const remaining = document.querySelectorAll('.card').length;
+      document.querySelector('.stats em').textContent = remaining;
+      if (remaining === 0) {
+        document.getElementById('grid').innerHTML = '<div class="empty">Your inventory is empty. Spin and save names to collect them here!</div>';
+      }
+    } else {
+      alert(data.error || 'Trade failed');
+    }
+  }
+</script>
+</body>
+</html>

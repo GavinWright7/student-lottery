@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Log In — Student Lottery</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{
+    font-family:'Inter',sans-serif;min-height:100vh;
+    background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);
+    color:#fff;display:flex;align-items:center;justify-content:center;
+  }
+  .card{
+    background:rgba(255,255,255,.07);border:1px solid rgba(139,92,246,.3);
+    border-radius:20px;padding:2.5rem;width:100%;max-width:400px;
+  }
+  h1{font-size:1.8rem;font-weight:800;text-align:center;margin-bottom:.5rem}
+  h1 span{color:#a78bfa}
+  .sub{text-align:center;color:#94a3b8;font-size:.9rem;margin-bottom:1.5rem}
+  label{display:block;font-size:.85rem;font-weight:600;color:#94a3b8;margin-bottom:.3rem;margin-top:1rem}
+  input{
+    width:100%;padding:.75rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.15);
+    background:rgba(255,255,255,.05);color:#fff;font-size:1rem;outline:none;
+  }
+  input:focus{border-color:#a78bfa}
+  .btn{
+    display:block;width:100%;margin-top:1.5rem;padding:.85rem;font-size:1rem;font-weight:700;
+    border:none;border-radius:10px;cursor:pointer;
+    background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;
+    transition:transform .15s;
+  }
+  .btn:hover{transform:translateY(-2px)}
+  .link{text-align:center;margin-top:1rem;font-size:.85rem;color:#94a3b8}
+  .link a{color:#a78bfa;text-decoration:none}
+  .flash{background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);color:#fca5a5;
+    padding:.6rem 1rem;border-radius:8px;font-size:.85rem;text-align:center;margin-bottom:1rem}
+</style>
+</head>
+<body>
+<div class="card">
+  <h1>Welcome <span>Back</span></h1>
+  <p class="sub">Log in to your account</p>
+  {% with messages = get_flashed_messages() %}
+  {% if messages %}{% for msg in messages %}<div class="flash">{{ msg }}</div>{% endfor %}{% endif %}
+  {% endwith %}
+  <form method="POST">
+    <label>Username</label>
+    <input type="text" name="username" required autocomplete="username">
+    <label>Password</label>
+    <input type="password" name="password" required autocomplete="current-password">
+    <button class="btn" type="submit">Log In</button>
+  </form>
+  <p class="link">Don't have an account? <a href="/register">Register</a></p>
+</div>
+</body>
+</html>

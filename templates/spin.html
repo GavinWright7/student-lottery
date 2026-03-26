@@ -4,16 +4,13 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Student Spinner</title>
-<link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
   body{
-    font-family:'Inter',sans-serif;
-    min-height:100vh;
+    font-family:'Inter',sans-serif;min-height:100vh;
     background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);
-    color:#fff;
-    display:flex;flex-direction:column;align-items:center;
+    color:#fff;display:flex;flex-direction:column;align-items:center;
   }
 
   nav{
@@ -29,13 +26,12 @@
 
   .container{
     flex:1;display:flex;flex-direction:column;align-items:center;
-    justify-content:center;padding:2rem;gap:2rem;max-width:600px;width:100%;
+    justify-content:center;padding:2rem;gap:1.5rem;max-width:600px;width:100%;
   }
   h1{font-size:2.4rem;font-weight:800;text-align:center;line-height:1.2}
   h1 span{color:#a78bfa}
   .subtitle{color:#94a3b8;text-align:center;font-size:1rem;margin-top:-.5rem}
 
-  /* ---- Reel window ---- */
   .reel-wrapper{
     width:100%;background:rgba(255,255,255,.07);
     border:2px solid rgba(139,92,246,.4);border-radius:16px;
@@ -43,107 +39,77 @@
     display:flex;align-items:center;justify-content:center;
     transition:border-color .4s, box-shadow .4s;
   }
-  .reel{
-    position:absolute;top:0;left:0;width:100%;
-    transition:transform .1s linear;
-  }
-  .reel-item{
-    height:80px;display:flex;align-items:center;justify-content:center;
-    font-size:1.5rem;font-weight:600;white-space:nowrap;
-  }
-  .winner-display{
-    font-size:1.6rem;font-weight:800;
-    text-align:center;opacity:0;transition:opacity .4s;
-  }
+  .reel{position:absolute;top:0;left:0;width:100%;transition:transform .1s linear}
+  .reel-item{height:80px;display:flex;align-items:center;justify-content:center;font-size:1.5rem;font-weight:600;white-space:nowrap}
+  .winner-display{font-size:1.6rem;font-weight:800;text-align:center;opacity:0;transition:opacity .4s}
   .winner-display.visible{opacity:1}
 
-  /* ---- Rarity colors ---- */
-  .reel-wrapper.rarity-common{
-    border-color:rgba(148,163,184,.5);
-    box-shadow:0 0 20px rgba(148,163,184,.15);
-  }
+  /* Rarity: common=grey, rare=blue, epic=purple, legendary=gold */
+  .reel-wrapper.rarity-common{border-color:rgba(148,163,184,.5);box-shadow:0 0 20px rgba(148,163,184,.15)}
   .winner-display.rarity-common{color:#94a3b8}
 
-  .reel-wrapper.rarity-uncommon{
-    border-color:rgba(52,211,153,.6);
-    box-shadow:0 0 25px rgba(52,211,153,.3);
-  }
-  .winner-display.rarity-uncommon{color:#34d399}
+  .reel-wrapper.rarity-rare{border-color:rgba(96,165,250,.6);box-shadow:0 0 25px rgba(96,165,250,.3)}
+  .winner-display.rarity-rare{color:#60a5fa}
 
-  .reel-wrapper.rarity-rare{
-    border-color:rgba(251,191,36,.7);
-    box-shadow:0 0 40px rgba(251,191,36,.5), 0 0 80px rgba(251,191,36,.2);
-    animation:goldPulse 1.5s ease-in-out infinite;
-  }
-  .winner-display.rarity-rare{
-    color:#fbbf24;
-    text-shadow:0 0 15px rgba(251,191,36,.7), 0 0 30px rgba(251,191,36,.4);
+  .reel-wrapper.rarity-epic{border-color:rgba(168,85,247,.6);box-shadow:0 0 30px rgba(168,85,247,.35);animation:epicPulse 1.5s ease-in-out infinite}
+  .winner-display.rarity-epic{color:#a855f7;text-shadow:0 0 12px rgba(168,85,247,.5)}
+  @keyframes epicPulse{
+    0%,100%{box-shadow:0 0 30px rgba(168,85,247,.35)}
+    50%{box-shadow:0 0 50px rgba(168,85,247,.55)}
   }
 
+  .reel-wrapper.rarity-legendary{border-color:rgba(251,191,36,.7);box-shadow:0 0 40px rgba(251,191,36,.5),0 0 80px rgba(251,191,36,.2);animation:goldPulse 1.2s ease-in-out infinite}
+  .winner-display.rarity-legendary{color:#fbbf24;text-shadow:0 0 15px rgba(251,191,36,.7),0 0 30px rgba(251,191,36,.4)}
   @keyframes goldPulse{
-    0%,100%{box-shadow:0 0 40px rgba(251,191,36,.5), 0 0 80px rgba(251,191,36,.2)}
-    50%{box-shadow:0 0 60px rgba(251,191,36,.7), 0 0 120px rgba(251,191,36,.35)}
+    0%,100%{box-shadow:0 0 40px rgba(251,191,36,.5),0 0 80px rgba(251,191,36,.2)}
+    50%{box-shadow:0 0 60px rgba(251,191,36,.7),0 0 120px rgba(251,191,36,.35)}
   }
 
-  .reel-wrapper.rarity-jackpot{
-    border-color:rgba(168,85,247,.8);
-    box-shadow:0 0 50px rgba(168,85,247,.6), 0 0 100px rgba(251,191,36,.4);
-    animation:jackpotPulse 1s ease-in-out infinite;
-  }
-  .winner-display.rarity-jackpot{
-    color:#e879f9;
-    text-shadow:0 0 20px rgba(168,85,247,.8), 0 0 40px rgba(251,191,36,.5);
-  }
-  .rarity-label.rarity-jackpot{color:#e879f9;background:rgba(168,85,247,.2)}
-
-  @keyframes jackpotPulse{
-    0%,100%{box-shadow:0 0 50px rgba(168,85,247,.6), 0 0 100px rgba(251,191,36,.4)}
-    50%{box-shadow:0 0 80px rgba(168,85,247,.8), 0 0 150px rgba(251,191,36,.6)}
-  }
-
-  .jackpot-banner{
-    display:none;flex-direction:column;align-items:center;gap:.8rem;
-    background:linear-gradient(145deg,rgba(168,85,247,.15),rgba(251,191,36,.1));
-    border:2px solid rgba(168,85,247,.5);border-radius:16px;
-    padding:1.5rem 2rem;width:100%;text-align:center;
-    animation:jackpotPulse 1.5s ease-in-out infinite;
-  }
-  .jackpot-banner.show{display:flex}
-  .jackpot-banner h2{font-size:1.4rem;font-weight:800;color:#e879f9}
-  .jackpot-banner p{color:#c4b5fd;font-size:1rem}
-
-  /* ---- Rarity label ---- */
   .rarity-label{
-    font-size:.85rem;font-weight:700;text-transform:uppercase;
-    letter-spacing:.1em;opacity:0;transition:opacity .4s;
-    padding:.3rem .8rem;border-radius:6px;
+    font-size:.85rem;font-weight:700;text-transform:uppercase;letter-spacing:.1em;
+    opacity:0;transition:opacity .4s;padding:.3rem .8rem;border-radius:6px;
   }
   .rarity-label.visible{opacity:1}
   .rarity-label.rarity-common{color:#94a3b8;background:rgba(148,163,184,.1)}
-  .rarity-label.rarity-uncommon{color:#34d399;background:rgba(52,211,153,.1)}
-  .rarity-label.rarity-rare{color:#fbbf24;background:rgba(251,191,36,.15)}
+  .rarity-label.rarity-rare{color:#60a5fa;background:rgba(96,165,250,.1)}
+  .rarity-label.rarity-epic{color:#a855f7;background:rgba(168,85,247,.15)}
+  .rarity-label.rarity-legendary{color:#fbbf24;background:rgba(251,191,36,.15)}
 
-  /* ---- Spin button ---- */
   .spin-btn{
     width:100%;max-width:320px;padding:1rem 2rem;font-size:1.2rem;font-weight:700;
     border:none;border-radius:12px;cursor:pointer;
     background:linear-gradient(135deg,#7c3aed,#a78bfa);
     color:#fff;box-shadow:0 4px 24px rgba(124,58,237,.5);
     transition:transform .15s,box-shadow .15s;
-    letter-spacing:.02em;
   }
   .spin-btn:hover{transform:translateY(-2px);box-shadow:0 6px 30px rgba(124,58,237,.6)}
   .spin-btn:active{transform:translateY(0)}
   .spin-btn:disabled{opacity:.45;cursor:not-allowed;transform:none}
 
-  .spin-info{
-    display:flex;gap:1.5rem;align-items:center;justify-content:center;flex-wrap:wrap;
-  }
-  .spin-badge{
-    background:rgba(255,255,255,.1);padding:.5rem 1rem;border-radius:8px;
-    font-size:.9rem;font-weight:600;
-  }
+  .spin-info{display:flex;gap:1.5rem;align-items:center;justify-content:center;flex-wrap:wrap}
+  .spin-badge{background:rgba(255,255,255,.1);padding:.5rem 1rem;border-radius:8px;font-size:.9rem;font-weight:600}
   .spin-badge em{font-style:normal;color:#a78bfa}
+
+  /* Save button (hidden until spin lands) */
+  .save-btn{
+    display:none;width:100%;max-width:320px;padding:.75rem 2rem;font-size:.95rem;font-weight:600;
+    border:2px solid rgba(52,211,153,.5);border-radius:10px;cursor:pointer;
+    background:transparent;color:#34d399;transition:transform .15s,background .2s;
+  }
+  .save-btn.show{display:block}
+  .save-btn:hover{background:rgba(52,211,153,.15);transform:translateY(-2px)}
+  .save-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+  .jackpot-banner{
+    display:none;flex-direction:column;align-items:center;gap:.8rem;
+    background:linear-gradient(145deg,rgba(168,85,247,.15),rgba(251,191,36,.1));
+    border:2px solid rgba(168,85,247,.5);border-radius:16px;
+    padding:1.5rem 2rem;width:100%;text-align:center;
+    animation:goldPulse 1.5s ease-in-out infinite;
+  }
+  .jackpot-banner.show{display:flex}
+  .jackpot-banner h2{font-size:1.4rem;font-weight:800;color:#e879f9}
+  .jackpot-banner p{color:#c4b5fd;font-size:1rem}
 
   .paywall{
     display:none;flex-direction:column;align-items:center;gap:1.2rem;
@@ -157,10 +123,17 @@
     padding:.85rem 2.5rem;font-size:1rem;font-weight:700;
     border:none;border-radius:10px;cursor:pointer;
     background:linear-gradient(135deg,#059669,#34d399);
-    color:#fff;box-shadow:0 4px 20px rgba(5,150,105,.4);
-    transition:transform .15s;
+    color:#fff;box-shadow:0 4px 20px rgba(5,150,105,.4);transition:transform .15s;
   }
   .pay-btn:hover{transform:translateY(-2px)}
+
+  .toast{
+    position:fixed;top:1.5rem;left:50%;transform:translateX(-50%) translateY(-100px);
+    background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.4);color:#34d399;
+    padding:.7rem 1.5rem;border-radius:10px;font-weight:600;font-size:.9rem;
+    transition:transform .3s ease;z-index:100;
+  }
+  .toast.show{transform:translateX(-50%) translateY(0)}
 
   footer{padding:1.5rem;text-align:center;color:#475569;font-size:.8rem}
 </style>
@@ -169,7 +142,9 @@
 
 <nav>
   <a href="/spin" class="active">Spin</a>
-  <a href="/lottery">Midnight Lottery</a>
+  <a href="/lottery">Lottery</a>
+  <a href="/inventory">Inventory</a>
+  <a href="/logout">Logout</a>
 </nav>
 
 <div class="container">
@@ -184,12 +159,12 @@
   <span class="rarity-label" id="rarityLabel"></span>
 
   <div class="spin-info">
-    <div class="spin-badge">Spins used: <em id="spinsUsed">{{ spins_used }}</em> / <em id="spinsAllowed">{{ spins_allowed }}</em></div>
+    <div class="spin-badge">Spins remaining: <em id="spinsRemaining">{{ spins_remaining }}</em></div>
   </div>
 
-  <button class="spin-btn" id="spinBtn" onclick="doSpin()">
-    SPIN
-  </button>
+  <button class="spin-btn" id="spinBtn" onclick="doSpin()">SPIN</button>
+
+  <button class="save-btn" id="saveBtn" onclick="saveToInventory()">Save to Inventory</button>
 
   <div class="jackpot-banner" id="jackpotBanner">
     <h2>JACKPOT! You matched today's lottery winner!</h2>
@@ -203,12 +178,15 @@
   </div>
 </div>
 
+<div class="toast" id="toast"></div>
+
 <footer>&copy; 2026 Student Lottery</footer>
 
 <script>
   let spinning = false;
-  let spinsUsed = {{ spins_used }};
-  let spinsAllowed = {{ spins_allowed }};
+  let spinsRemaining = {{ spins_remaining }};
+  let lastWinner = null;
+  let lastRarity = null;
 
   const reelEl = document.getElementById('reel');
   const winnerEl = document.getElementById('winnerDisplay');
@@ -216,20 +194,27 @@
   const paywall = document.getElementById('paywall');
   const reelWrapper = document.getElementById('reelWrapper');
   const rarityLabel = document.getElementById('rarityLabel');
-
   const jackpotBanner = document.getElementById('jackpotBanner');
-  const rarityNames = {common: 'Common', uncommon: 'Uncommon', rare: 'Rare', jackpot: 'JACKPOT'};
-  const allRarities = ['rarity-common', 'rarity-uncommon', 'rarity-rare', 'rarity-jackpot'];
+  const saveBtn = document.getElementById('saveBtn');
+
+  const rarityNames = {common:'Common', rare:'Rare', epic:'Epic', legendary:'Legendary'};
+  const allRarities = ['rarity-common','rarity-rare','rarity-epic','rarity-legendary'];
+
+  function showToast(msg) {
+    const t = document.getElementById('toast');
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
 
   function clearRarity() {
-    allRarities.forEach(c => {
-      reelWrapper.classList.remove(c);
-      winnerEl.classList.remove(c);
-      rarityLabel.classList.remove(c);
-    });
+    allRarities.forEach(c => { reelWrapper.classList.remove(c); winnerEl.classList.remove(c); rarityLabel.classList.remove(c); });
     rarityLabel.classList.remove('visible');
     rarityLabel.textContent = '';
     jackpotBanner.classList.remove('show');
+    saveBtn.classList.remove('show');
+    lastWinner = null;
+    lastRarity = null;
   }
 
   function showRarity(rarity, isJackpot) {
@@ -241,38 +226,51 @@
   }
 
   function updateUI() {
-    document.getElementById('spinsUsed').textContent = spinsUsed;
-    document.getElementById('spinsAllowed').textContent = spinsAllowed;
-    if (spinsUsed >= spinsAllowed) {
+    document.getElementById('spinsRemaining').textContent = spinsRemaining;
+    if (spinsRemaining <= 0) {
       spinBtn.disabled = true;
       paywall.classList.add('show');
+    } else {
+      spinBtn.disabled = false;
+      paywall.classList.remove('show');
     }
   }
 
   async function buySpins() {
-    const res = await fetch('/create-checkout-session', {method: 'POST'});
+    const res = await fetch('/create-checkout-session', {method:'POST'});
     const data = await res.json();
-    if (data.url) {
-      window.location.href = data.url;
+    if (data.url) window.location.href = data.url;
+    else alert('Payment error: ' + (data.error || 'unknown'));
+  }
+
+  async function saveToInventory() {
+    if (!lastWinner) return;
+    saveBtn.disabled = true;
+    const res = await fetch('/api/save-to-inventory', {
+      method: 'POST',
+      headers: {'Content-Type':'application/json'},
+      body: JSON.stringify({name: lastWinner, rarity: lastRarity}),
+    });
+    const data = await res.json();
+    if (data.success) {
+      showToast(data.message);
+      saveBtn.classList.remove('show');
     } else {
-      alert('Payment error: ' + (data.error || 'unknown'));
+      alert(data.error || 'Failed to save');
+      saveBtn.disabled = false;
     }
   }
 
   async function doSpin() {
-    if (spinning || spinsUsed >= spinsAllowed) return;
+    if (spinning || spinsRemaining <= 0) return;
     spinning = true;
     spinBtn.disabled = true;
     winnerEl.classList.remove('visible');
     winnerEl.textContent = '';
     clearRarity();
 
-    const res = await fetch('/api/spin', {method: 'POST'});
-    if (res.status === 403) {
-      spinning = false;
-      updateUI();
-      return;
-    }
+    const res = await fetch('/api/spin', {method:'POST'});
+    if (res.status === 403) { spinning = false; updateUI(); return; }
     const data = await res.json();
 
     const reel = data.reel;
@@ -284,8 +282,7 @@
       reelEl.appendChild(div);
     });
 
-    const itemH = 80;
-    const total = reel.length;
+    const itemH = 80, total = reel.length;
     let idx = 0;
     reelEl.style.transition = 'none';
     reelEl.style.transform = 'translateY(0)';
@@ -309,10 +306,13 @@
     winnerEl.classList.add('visible');
     showRarity(data.rarity, data.jackpot);
 
-    spinsUsed = data.spins_used;
-    spinsAllowed = data.spins_allowed;
+    lastWinner = data.winner;
+    lastRarity = data.rarity;
+    saveBtn.classList.add('show');
+    saveBtn.disabled = false;
+
+    spinsRemaining = data.spins_remaining;
     spinning = false;
-    spinBtn.disabled = false;
     updateUI();
   }
 
