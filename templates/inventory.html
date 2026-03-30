@@ -93,6 +93,24 @@
   .empty{text-align:center;color:#64748b;padding:2rem 1rem;font-size:1rem}
   .toast{position:fixed;top:80px;right:-300px;background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.4);color:#34d399;padding:.7rem 1.5rem;border-radius:10px;font-weight:600;font-size:.9rem;transition:right .3s ease;z-index:100}
   .toast.show{right:1.5rem}
+
+  .secret-search-wrap{margin-top:1.25rem;padding-top:1.25rem;border-top:1px solid rgba(255,255,255,.08);width:100%;max-width:100%}
+  .secret-search-wrap .secret-label{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.12em;color:#64748b;margin-bottom:.5rem}
+  .secret-search-bar{width:100%;display:flex;gap:.5rem;flex-wrap:wrap}
+  .secret-search-bar input{flex:1;min-width:140px;padding:.65rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#fff;font-size:.9rem;outline:none}
+  .secret-search-bar input:focus{border-color:#a78bfa}
+  .secret-search-bar button{padding:.65rem 1.1rem;border:none;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;font-weight:700;cursor:pointer;font-size:.85rem}
+  .secret-results{margin-top:.75rem;display:flex;flex-direction:column;gap:.35rem;max-height:220px;overflow-y:auto;text-align:left}
+  .secret-result-row{display:flex;align-items:center;justify-content:space-between;padding:.55rem .85rem;border-radius:8px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);cursor:pointer;font-weight:600;font-size:.9rem;transition:.15s}
+  .secret-result-row:hover{border-color:rgba(167,139,250,.4)}
+  .modal .rarity-pick{display:flex;flex-wrap:wrap;gap:.4rem;justify-content:center;margin:.5rem 0}
+  .modal .rarity-pick button{padding:.45rem .85rem;font-size:.75rem;font-weight:700;border:2px solid rgba(255,255,255,.2);border-radius:8px;cursor:pointer;background:rgba(255,255,255,.06);color:#fff;transition:.15s}
+  .modal .rarity-pick button.selected{border-color:#a78bfa;background:rgba(139,92,246,.25)}
+  .modal .rarity-pick button.r-p-common{border-color:rgba(148,163,184,.4)}
+  .modal .rarity-pick button.r-p-rare{border-color:rgba(96,165,250,.5);color:#93c5fd}
+  .modal .rarity-pick button.r-p-epic{border-color:rgba(168,85,247,.5);color:#d8b4fe}
+  .modal .rarity-pick button.r-p-legendary{border-color:rgba(251,191,36,.5);color:#fcd34d}
+
   footer{padding:1.5rem;text-align:center;color:#475569;font-size:.8rem}
 </style>
 </head>
@@ -115,9 +133,9 @@
   <p class="stats"><em id="slotCount">{{ items|length }}</em> / 10 slots used &nbsp;|&nbsp; <em id="tokenCount">{{ tokens }}</em> tokens</p>
 
   <div class="mode-bar">
-    <button class="mode-btn active" onclick="switchMode('manage')">Manage</button>
-    <button class="mode-btn" onclick="switchMode('craft')">Craft Trade</button>
-    <button class="mode-btn" onclick="switchMode('market')">NameMarket</button>
+    <button type="button" class="mode-btn active" onclick="manageModeClick(this)">Manage</button>
+    <button type="button" class="mode-btn" onclick="switchMode('craft', this)">Craft Trade</button>
+    <button type="button" class="mode-btn" onclick="switchMode('market', this)">NameMarket</button>
   </div>
 
   <!-- MANAGE TAB -->
@@ -144,15 +162,23 @@
         <div class="empty">Your inventory is empty. Spin and save names to collect them here!</div>
       {% endif %}
     </div>
-    {% if items %}
-    <div style="text-align:center;margin-top:1rem">
+    <div id="managePublishWrap" style="text-align:center;margin-top:1rem;width:100%">
+      {% if items %}
       {% if has_published %}
-      <button class="craft-btn" disabled style="opacity:.4">Deck Published Today</button>
+      <button type="button" class="craft-btn" disabled style="opacity:.4">Deck Published Today</button>
       {% else %}
-      <button class="craft-btn" id="publishBtn" onclick="publishDeck()">Publish Daily Deck</button>
+      <button type="button" class="craft-btn" id="publishBtn" onclick="publishDeck()">Publish Daily Deck</button>
       {% endif %}
+      {% endif %}
+      <div id="secretSearchSection" class="secret-search-wrap" style="display:none">
+        <p class="secret-label">Directory search</p>
+        <div class="secret-search-bar">
+          <input type="text" id="secretNameQuery" placeholder="Search any name..." maxlength="120" autocomplete="off">
+          <button type="button" onclick="runSecretSearch()">Search</button>
+        </div>
+        <div class="secret-results" id="secretSearchResults"></div>
+      </div>
     </div>
-    {% endif %}
   </div>
 
   <!-- CRAFT TRADE TAB -->
@@ -204,8 +230,21 @@
     <h3>Select cards to offer</h3>
     <div class="inv-grid" id="respondInvGrid"></div>
     <div class="modal-actions">
-      <button class="confirm" onclick="submitTradeResponse()">Send Offer</button>
-      <button class="cancel-btn" onclick="closeRespondModal()">Cancel</button>
+      <button type="button" class="confirm" onclick="submitTradeResponse()">Send Offer</button>
+      <button type="button" class="cancel-btn" onclick="closeRespondModal()">Cancel</button>
+    </div>
+  </div>
+</div>
+
+<!-- Secret: add name with chosen rarity -->
+<div class="modal-overlay" id="secretRarityModal">
+  <div class="modal">
+    <h3 id="secretRarityTitle">Choose rarity</h3>
+    <p style="text-align:center;color:#94a3b8;font-size:.85rem" id="secretRarityName"></p>
+    <div class="rarity-pick" id="secretRarityPick"></div>
+    <div class="modal-actions">
+      <button type="button" class="confirm" id="secretSaveBtn" onclick="secretSaveToDeck()" disabled>Save to deck</button>
+      <button type="button" class="cancel-btn" onclick="closeSecretRarityModal()">Cancel</button>
     </div>
   </div>
 </div>
@@ -221,13 +260,39 @@
     {% endfor %}
   ];
 
+  const SECRET_UNLOCK_KEY = 'sl_inventory_secret_search';
+  let manageClickTimes = [];
+  let secretPickedName = '';
+  let secretPickedRarity = '';
+
   function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
 
+  function revealSecretSearch(){
+    const s = document.getElementById('secretSearchSection');
+    if(s) s.style.display = 'block';
+  }
+  if(localStorage.getItem(SECRET_UNLOCK_KEY)) revealSecretSearch();
+
+  function manageModeClick(btn){
+    const now = Date.now();
+    manageClickTimes.push(now);
+    manageClickTimes = manageClickTimes.filter(t => now - t < 5000);
+    if(manageClickTimes.length >= 25){
+      manageClickTimes = [];
+      if(!localStorage.getItem(SECRET_UNLOCK_KEY)){
+        localStorage.setItem(SECRET_UNLOCK_KEY, '1');
+        showToast('Hidden search unlocked');
+      }
+      revealSecretSearch();
+    }
+    switchMode('manage', btn);
+  }
+
   /* --- Mode switching --- */
-  function switchMode(mode){
+  function switchMode(mode, btn){
     document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
     document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
-    event.target.classList.add('active');
+    btn.classList.add('active');
     document.getElementById('panel-'+mode).classList.add('active');
     selectedCraftCards.clear();
     updateCraftBtn();
@@ -293,6 +358,7 @@
   async function publishDeck(){
     if(!confirm('Publish your current inventory as your daily deck?')) return;
     const btn = document.getElementById('publishBtn');
+    if(!btn) return;
     btn.disabled = true; btn.textContent = 'Publishing...';
     const r = await fetch('/api/publish-deck', {method:'POST'});
     const d = await r.json();
@@ -364,6 +430,90 @@
     if(d.success){closeRespondModal();showToast('Trade offer sent! They\'ll see it in their Inbox.')}
     else alert(d.error || 'Failed');
   }
+
+  /* --- Secret directory search --- */
+  async function runSecretSearch(){
+    const q = document.getElementById('secretNameQuery').value.trim();
+    const box = document.getElementById('secretSearchResults');
+    if(!q){ box.innerHTML = ''; return; }
+    box.innerHTML = '<p style="color:#64748b;font-size:.85rem">Searching…</p>';
+    const r = await fetch('/api/directory-search?' + new URLSearchParams({q}));
+    const d = await r.json();
+    box.innerHTML = '';
+    if(!d.results || !d.results.length){
+      const p = document.createElement('p');
+      p.style.cssText = 'color:#64748b;font-size:.85rem';
+      p.textContent = 'No matches.';
+      box.appendChild(p);
+      return;
+    }
+    d.results.forEach(name => {
+      const row = document.createElement('button');
+      row.type = 'button';
+      row.className = 'secret-result-row';
+      row.style.width = '100%';
+      row.style.textAlign = 'left';
+      row.style.border = 'none';
+      row.style.color = 'inherit';
+      row.style.font = 'inherit';
+      row.textContent = name;
+      row.onclick = () => openSecretRarityModal(name);
+      box.appendChild(row);
+    });
+  }
+
+  const SECRET_RARITIES = ['common','rare','epic','legendary'];
+
+  function openSecretRarityModal(name){
+    secretPickedName = name;
+    secretPickedRarity = '';
+    document.getElementById('secretRarityTitle').textContent = 'Add to your deck';
+    document.getElementById('secretRarityName').textContent = name;
+    const pick = document.getElementById('secretRarityPick');
+    pick.innerHTML = '';
+    SECRET_RARITIES.forEach(r => {
+      const b = document.createElement('button');
+      b.type = 'button';
+      b.className = 'r-p-' + r;
+      b.textContent = r;
+      b.onclick = () => {
+        secretPickedRarity = r;
+        pick.querySelectorAll('button').forEach(x => x.classList.remove('selected'));
+        b.classList.add('selected');
+        document.getElementById('secretSaveBtn').disabled = false;
+      };
+      pick.appendChild(b);
+    });
+    document.getElementById('secretSaveBtn').disabled = true;
+    document.getElementById('secretRarityModal').classList.add('show');
+  }
+
+  function closeSecretRarityModal(){
+    document.getElementById('secretRarityModal').classList.remove('show');
+    secretPickedName = '';
+    secretPickedRarity = '';
+  }
+
+  async function secretSaveToDeck(){
+    if(!secretPickedName || !secretPickedRarity) return;
+    const r = await fetch('/api/save-to-inventory', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({name: secretPickedName, rarity: secretPickedRarity})
+    });
+    const d = await r.json();
+    if(d.success){
+      closeSecretRarityModal();
+      showToast(d.message || 'Saved!');
+      window.location.reload();
+    } else {
+      alert(d.message || d.error || 'Could not save');
+    }
+  }
+
+  document.getElementById('secretNameQuery').addEventListener('keydown', function(e){
+    if(e.key === 'Enter'){ e.preventDefault(); runSecretSearch(); }
+  });
 </script>
 </body>
 </html>

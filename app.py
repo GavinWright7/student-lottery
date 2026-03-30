@@ -57,6 +57,8 @@ TRADE_VALUES = {
     "legendary": 50,
 }
 
+ALLOWED_INVENTORY_RARITIES = frozenset(TRADE_VALUES.keys())
+
 # ---------------------------------------------------------------------------
 # Database
 # ---------------------------------------------------------------------------
@@ -537,6 +539,8 @@ def save_to_inventory():
     replace_id = data.get("replace_id")
     if not name:
         return jsonify({"error": "No name provided"}), 400
+    if rarity not in ALLOWED_INVENTORY_RARITIES:
+        return jsonify({"error": "invalid_rarity"}), 400
 
     user = get_current_user()
     db = get_db()
@@ -562,14 +566,34 @@ def save_to_inventory():
         return jsonify({"error": "duplicate_name", "message": "That name is already in your inventory."}), 400
 
     cur.execute(
-        "INSERT INTO inventory (user_id, name, rarity) VALUES (%s, %s, %s)",
+        "INSERT INTO inventory (user_id, name, rarity) VALUES (%s, %s, %s) RETURNING id",
         (user["id"], name, rarity),
     )
+    new_id = cur.fetchone()[0]
     db.commit()
     cur.execute("SELECT COUNT(*) FROM inventory WHERE user_id = %s", (user["id"],))
     new_count = cur.fetchone()[0]
     cur.close()
-    return jsonify({"success": True, "message": f"Saved {name} to inventory!", "inv_count": new_count})
+    return jsonify(
+        {
+            "success": True,
+            "message": f"Saved {name} to inventory!",
+            "inv_count": new_count,
+            "id": new_id,
+        }
+    )
+
+
+@app.route("/api/directory-search", methods=["GET"])
+@login_required
+def directory_search():
+    """Search student directory names (substring match). Used by inventory easter egg."""
+    q = request.args.get("q", "").strip().lower()
+    if not q:
+        return jsonify({"results": []})
+    limit = 40
+    results = [n for n in NAMES if q in n.lower()][:limit]
+    return jsonify({"results": results})
 
 
 # ---------------------------------------------------------------------------
