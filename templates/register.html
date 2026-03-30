@@ -46,12 +46,15 @@
   {% if messages %}{% for msg in messages %}<div class="flash">{{ msg }}</div>{% endfor %}{% endif %}
   {% endwith %}
   <form method="POST">
-    <label>Username</label>
-    <input type="text" name="username" required autocomplete="username">
+    <label>First Name</label>
+    <input type="text" name="first_name" required autocomplete="given-name" placeholder="As it appears in the campus directory">
+    <label>Last Name</label>
+    <input type="text" name="last_name" required autocomplete="family-name" placeholder="As it appears in the campus directory">
     <label>Password</label>
     <input type="password" name="password" required autocomplete="new-password">
     <button class="btn" type="submit">Register</button>
   </form>
+  <p class="sub" style="margin-top:.8rem;font-size:.75rem">Your name must match a student in the campus directory.</p>
   <p class="link">Already have an account? <a href="/login">Log in</a></p>
 </div>
 </body>

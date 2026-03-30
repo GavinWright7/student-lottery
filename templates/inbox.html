@@ -1,0 +1,360 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Inbox — Student Lottery</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;min-height:100vh;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#fff;display:flex;flex-direction:column;align-items:center}
+
+  nav{width:100%;padding:1rem 2rem;display:flex;align-items:center;background:rgba(255,255,255,.06);backdrop-filter:blur(10px)}
+  .nav-links{display:flex;gap:1.2rem;flex:1;justify-content:center;flex-wrap:wrap}
+  nav a{color:#c4b5fd;text-decoration:none;font-weight:600;font-size:.9rem;padding:.5rem 1rem;border-radius:8px;transition:.2s;position:relative}
+  nav a:hover,nav a.active{background:rgba(139,92,246,.3);color:#fff}
+  .badge{position:absolute;top:-4px;right:-6px;background:#ef4444;color:#fff;font-size:.65rem;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3}
+  .nav-right{display:flex;align-items:center;gap:.7rem}
+  .nav-user{color:#c4b5fd;font-weight:700;font-size:.85rem;white-space:nowrap}
+  .token-counter{display:flex;align-items:center;gap:.4rem;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);padding:.4rem .9rem;border-radius:20px;font-weight:700;font-size:.9rem;color:#fbbf24;white-space:nowrap}
+  .token-coin{width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#fbbf24,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#78350f;line-height:1}
+
+  .container{flex:1;display:flex;flex-direction:column;align-items:center;padding:2rem;gap:1.5rem;max-width:750px;width:100%}
+  h1{font-size:2rem;font-weight:800;text-align:center} h1 span{color:#a78bfa}
+
+  .tabs{display:flex;gap:.5rem;width:100%;border-bottom:1px solid rgba(255,255,255,.1);padding-bottom:.5rem}
+  .tab{padding:.6rem 1.2rem;border-radius:8px 8px 0 0;cursor:pointer;font-weight:700;font-size:.9rem;color:#94a3b8;background:transparent;border:none;transition:.2s}
+  .tab:hover{color:#fff}
+  .tab.active{background:rgba(139,92,246,.2);color:#fff}
+  .tab-count{font-size:.75rem;background:rgba(239,68,68,.3);color:#fca5a5;padding:0 5px;border-radius:8px;margin-left:.3rem}
+
+  .panel{display:none;width:100%;flex-direction:column;gap:.6rem}
+  .panel.active{display:flex}
+
+  /* Requests */
+  .req-card{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+  .req-card .name{font-weight:700}
+  .req-actions{display:flex;gap:.4rem}
+  .req-btn{width:32px;height:32px;border:none;border-radius:8px;cursor:pointer;font-size:1rem;display:flex;align-items:center;justify-content:center;transition:transform .15s}
+  .req-btn:hover{transform:scale(1.1)}
+  .req-btn.accept{background:rgba(52,211,153,.3);color:#34d399}
+  .req-btn.decline{background:rgba(239,68,68,.3);color:#fca5a5}
+
+  /* Messages */
+  .friend-list{width:100%;display:flex;flex-direction:column;gap:.5rem}
+  .friend-item{display:flex;align-items:center;justify-content:space-between;padding:.7rem 1rem;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08);cursor:pointer;transition:.2s}
+  .friend-item:hover{background:rgba(139,92,246,.15)}
+  .friend-item .fi-name{font-weight:700;font-size:.95rem}
+  .friend-item .fi-preview{font-size:.8rem;color:#94a3b8;max-width:250px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .unread-dot{width:10px;height:10px;border-radius:50%;background:#a78bfa;flex-shrink:0}
+  .msg-search{width:100%;padding:.6rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#fff;font-size:.9rem;outline:none;margin-bottom:.5rem}
+  .msg-search:focus{border-color:#a78bfa}
+
+  /* Chat overlay */
+  .chat-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:50;justify-content:center;align-items:center}
+  .chat-overlay.show{display:flex}
+  .chat-box{background:linear-gradient(135deg,#1a1640,#2d2760);border:1px solid rgba(139,92,246,.3);border-radius:16px;width:90%;max-width:500px;height:70vh;display:flex;flex-direction:column}
+  .chat-header{padding:1rem 1.2rem;border-bottom:1px solid rgba(255,255,255,.1);display:flex;justify-content:space-between;align-items:center}
+  .chat-header h3{font-size:1.1rem;font-weight:700}
+  .chat-close{background:none;border:none;color:#94a3b8;font-size:1.3rem;cursor:pointer}
+  .chat-messages{flex:1;overflow-y:auto;padding:1rem;display:flex;flex-direction:column;gap:.5rem}
+  .msg{max-width:75%;padding:.5rem .8rem;border-radius:10px;font-size:.9rem;line-height:1.4;word-wrap:break-word}
+  .msg.mine{align-self:flex-end;background:rgba(124,58,237,.4);color:#e9d5ff}
+  .msg.theirs{align-self:flex-start;background:rgba(255,255,255,.08);color:#e2e8f0}
+  .msg .ts{font-size:.65rem;color:#94a3b8;margin-top:.2rem}
+  .chat-input{display:flex;gap:.5rem;padding:.8rem 1rem;border-top:1px solid rgba(255,255,255,.1)}
+  .chat-input input{flex:1;padding:.5rem .8rem;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#fff;font-size:.9rem;outline:none}
+  .chat-input button{padding:.5rem 1rem;border:none;border-radius:8px;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;font-weight:700;cursor:pointer}
+
+  /* My Name Trades */
+  .trade-card{padding:1rem 1.2rem;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);margin-bottom:.3rem}
+  .trade-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem}
+  .trade-header .user{font-weight:700;font-size:.95rem}
+  .trade-header .status{font-size:.75rem;font-weight:700;padding:.2rem .6rem;border-radius:6px}
+  .trade-header .status.open{background:rgba(52,211,153,.15);color:#34d399}
+  .trade-header .status.completed{background:rgba(96,165,250,.15);color:#60a5fa}
+  .trade-header .status.cancelled{background:rgba(239,68,68,.15);color:#fca5a5}
+  .trade-items{display:flex;gap:.4rem;flex-wrap:wrap;margin:.4rem 0}
+  .trade-chip{padding:.25rem .6rem;border-radius:6px;font-size:.75rem;font-weight:700;text-transform:uppercase}
+  .trade-chip.common{background:rgba(148,163,184,.15);color:#94a3b8}
+  .trade-chip.rare{background:rgba(96,165,250,.15);color:#60a5fa}
+  .trade-chip.epic{background:rgba(168,85,247,.15);color:#a855f7}
+  .trade-chip.legendary{background:rgba(251,191,36,.15);color:#fbbf24}
+  .trade-actions{display:flex;gap:.4rem;margin-top:.5rem}
+  .t-btn{padding:.4rem .8rem;font-size:.8rem;font-weight:700;border:none;border-radius:8px;cursor:pointer;color:#fff;transition:transform .15s}
+  .t-btn:hover{transform:translateY(-1px)}
+  .t-btn.accept{background:linear-gradient(135deg,#059669,#34d399)}
+  .t-btn.decline{background:rgba(239,68,68,.3);color:#fca5a5}
+  .t-btn.cancel{background:rgba(239,68,68,.3);color:#fca5a5}
+
+  .resp-card{margin-top:.5rem;padding:.7rem 1rem;border-radius:10px;background:rgba(139,92,246,.08);border:1px solid rgba(139,92,246,.2)}
+  .resp-header{font-size:.85rem;font-weight:700;margin-bottom:.3rem}
+  .resp-status{font-size:.7rem;font-weight:700;padding:.15rem .5rem;border-radius:5px;margin-left:.4rem}
+  .resp-status.pending{background:rgba(251,191,36,.15);color:#fbbf24}
+  .resp-status.accepted{background:rgba(52,211,153,.15);color:#34d399}
+  .resp-status.declined{background:rgba(239,68,68,.15);color:#fca5a5}
+
+  .empty{color:#64748b;text-align:center;padding:2rem;font-size:.95rem}
+  .toast{position:fixed;top:80px;right:-300px;background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.4);color:#34d399;padding:.7rem 1.5rem;border-radius:10px;font-weight:600;font-size:.9rem;transition:right .3s ease;z-index:100}
+  .toast.show{right:1.5rem}
+  footer{padding:1.5rem;text-align:center;color:#475569;font-size:.8rem}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-links">
+    <a href="/spin">Spin</a>
+    <a href="/lottery">Today's Winner</a>
+    <a href="/inventory">Inventory</a>
+    <a href="/decks">Decks</a>
+    <a href="/users">Users</a>
+    <a href="/inbox" class="active">Inbox{% if inbox_badge %}<span class="badge">{{ inbox_badge }}</span>{% endif %}</a>
+    <a href="/logout">Logout</a>
+  </div>
+  <div class="nav-right"><span class="nav-user">{{ session.display_name }}</span><div class="token-counter"><div class="token-coin">T</div><span>{{ tokens }}</span></div></div>
+</nav>
+
+<div class="container">
+  <h1>Your <span>Inbox</span></h1>
+
+  <div class="tabs">
+    <button class="tab active" onclick="switchTab('requests')">Requests{% if requests_list %}<span class="tab-count">{{ requests_list|length }}</span>{% endif %}</button>
+    <button class="tab" onclick="switchTab('messages')">Messages</button>
+    <button class="tab" onclick="switchTab('mytrades')">Trades</button>
+    <button class="tab" onclick="switchTab('mydeck')">My Deck</button>
+  </div>
+
+  <!-- REQUESTS TAB -->
+  <div class="panel active" id="panel-requests">
+    {% if requests_list %}
+      {% for r in requests_list %}
+      <div class="req-card" id="req-{{ r.id }}">
+        <span class="name">{{ r.display_name }}</span>
+        <div class="req-actions">
+          <button class="req-btn accept" onclick="handleReq({{ r.id }},'accept')" title="Accept">&#10003;</button>
+          <button class="req-btn decline" onclick="handleReq({{ r.id }},'decline')" title="Decline">&#10005;</button>
+        </div>
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty">No pending friend requests.</p>
+    {% endif %}
+  </div>
+
+  <!-- MESSAGES TAB -->
+  <div class="panel" id="panel-messages">
+    <input class="msg-search" type="text" placeholder="Search friends..." oninput="filterFriends(this.value)">
+    <div class="friend-list" id="friendList">
+      {% if friends %}
+        {% for f in friends %}
+        <div class="friend-item" data-name="{{ f.display_name|lower }}" onclick="openChat({{ f.id }}, '{{ f.display_name }}')">
+          <div>
+            <div class="fi-name">{{ f.display_name }}</div>
+            {% if last_msgs.get(f.id) %}
+            <div class="fi-preview">{{ last_msgs[f.id].content[:60] }}</div>
+            {% endif %}
+          </div>
+          {% if unread_counts.get(f.id, 0) > 0 %}
+          <div class="unread-dot"></div>
+          {% endif %}
+        </div>
+        {% endfor %}
+      {% else %}
+        <p class="empty">No friends yet. Go to Users to add some!</p>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- MY NAME TRADES TAB -->
+  <div class="panel" id="panel-mytrades">
+    {% if my_trades %}
+      {% for t in my_trades %}
+      <div class="trade-card" id="trade-{{ t.id }}">
+        <div class="trade-header">
+          <span class="user">Your Trade</span>
+          <span class="status {{ t.status }}">{{ t.status }}</span>
+        </div>
+        <p style="font-size:.8rem;color:#94a3b8;margin-bottom:.3rem">You're offering:</p>
+        <div class="trade-items">
+          {% for i in t.offer_items %}<span class="trade-chip {{ i.rarity }}">{{ i.name }}</span>{% endfor %}
+        </div>
+        {% if t.status == 'open' %}
+        <div class="trade-actions">
+          <button class="t-btn cancel" onclick="cancelTrade({{ t.id }})">Cancel Trade</button>
+        </div>
+        {% endif %}
+
+        {% if t.responses %}
+        <p style="font-size:.85rem;font-weight:700;color:#c4b5fd;margin-top:.7rem">Responses:</p>
+        {% for resp in t.responses %}
+        <div class="resp-card" id="resp-{{ resp.response_id }}">
+          <div class="resp-header">
+            {{ resp.responder_name }}
+            <span class="resp-status {{ resp.resp_status }}">{{ resp.resp_status }}</span>
+          </div>
+          <div class="trade-items">
+            {% for i in resp.offer_items %}<span class="trade-chip {{ i.rarity }}">{{ i.name }}</span>{% endfor %}
+          </div>
+          {% if resp.resp_status == 'pending' and t.status == 'open' %}
+          <div class="trade-actions">
+            <button class="t-btn accept" onclick="handleTradeResp({{ resp.response_id }})">Accept Trade</button>
+            <button class="t-btn decline" onclick="declineTradeResp({{ resp.response_id }})">Decline</button>
+          </div>
+          {% endif %}
+        </div>
+        {% endfor %}
+        {% elif t.status == 'open' %}
+        <p style="font-size:.8rem;color:#64748b;margin-top:.5rem">No responses yet.</p>
+        {% endif %}
+      </div>
+      {% endfor %}
+    {% else %}
+      <p class="empty">You haven't posted any trades. Go to Inventory &rarr; Craft Trade to create one!</p>
+    {% endif %}
+  </div>
+
+  <!-- MY DECK TAB -->
+  <div class="panel" id="panel-mydeck">
+    {% if my_deck %}
+    <div class="trade-card">
+      <div class="trade-header">
+        <span class="user">Your Published Deck</span>
+        <span style="font-size:.75rem;color:#64748b">{{ my_deck.published_at.strftime('%I:%M %p') if my_deck.published_at else '' }}</span>
+      </div>
+      <div class="trade-items">
+        {% for c in my_deck.cards %}<span class="trade-chip {{ c.rarity }}">{{ c.name }}</span>{% endfor %}
+      </div>
+      <p style="font-size:.9rem;font-weight:700;color:#a78bfa;margin-top:.6rem">&#9650; {{ my_deck.upvotes }} upvote{{ 's' if my_deck.upvotes != 1 else '' }}</p>
+
+      {% if my_deck.comments %}
+      <div style="margin-top:.7rem;border-top:1px solid rgba(255,255,255,.08);padding-top:.5rem">
+        <p style="font-size:.85rem;font-weight:700;color:#c4b5fd;margin-bottom:.4rem">Comments:</p>
+        {% for cm in my_deck.comments %}
+        <div style="padding:.3rem 0;font-size:.85rem">
+          <span style="font-weight:700;color:#c4b5fd">{{ cm.author_name }}</span>
+          <span style="color:#e2e8f0">{{ cm.content }}</span>
+        </div>
+        {% endfor %}
+      </div>
+      {% else %}
+      <p style="font-size:.8rem;color:#64748b;margin-top:.5rem">No comments yet.</p>
+      {% endif %}
+    </div>
+    {% else %}
+      <p class="empty">You haven't published a deck today. Go to Inventory to publish one!</p>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Chat overlay -->
+<div class="chat-overlay" id="chatOverlay">
+  <div class="chat-box">
+    <div class="chat-header">
+      <h3 id="chatTitle">Chat</h3>
+      <button class="chat-close" onclick="closeChat()">&#10005;</button>
+    </div>
+    <div class="chat-messages" id="chatMessages"></div>
+    <div class="chat-input">
+      <input type="text" id="chatInput" placeholder="Type a message..." onkeydown="if(event.key==='Enter')sendMsg()">
+      <button onclick="sendMsg()">Send</button>
+    </div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<footer>&copy; 2026 Student Lottery</footer>
+
+<script>
+  function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+
+  /* --- Tabs --- */
+  function switchTab(name){
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('panel-'+name).classList.add('active');
+  }
+
+  /* --- Friend Requests --- */
+  async function handleReq(id, action){
+    await fetch('/api/friend-request/'+id+'/'+action, {method:'POST'});
+    document.getElementById('req-'+id).remove();
+    showToast(action==='accept'?'Friend added!':'Request declined');
+  }
+
+  /* --- Messages --- */
+  function filterFriends(q){
+    q = q.toLowerCase();
+    document.querySelectorAll('.friend-item').forEach(el=>{
+      el.style.display = el.dataset.name.includes(q) ? '' : 'none';
+    });
+  }
+
+  let currentChatFriend = null;
+  let chatPoll = null;
+
+  function openChat(fid, fname){
+    currentChatFriend = fid;
+    document.getElementById('chatTitle').textContent = fname;
+    document.getElementById('chatOverlay').classList.add('show');
+    loadMessages();
+    chatPoll = setInterval(loadMessages, 3000);
+  }
+  function closeChat(){
+    document.getElementById('chatOverlay').classList.remove('show');
+    currentChatFriend = null;
+    if(chatPoll) clearInterval(chatPoll);
+  }
+
+  async function loadMessages(){
+    if(!currentChatFriend) return;
+    const r = await fetch('/api/messages/'+currentChatFriend);
+    const msgs = await r.json();
+    const box = document.getElementById('chatMessages');
+    const wasAtBottom = box.scrollHeight - box.scrollTop - box.clientHeight < 50;
+    box.innerHTML = '';
+    msgs.forEach(m=>{
+      const d = document.createElement('div');
+      d.className = 'msg ' + (m.is_mine ? 'mine' : 'theirs');
+      d.innerHTML = m.content + '<div class="ts">' + new Date(m.created_at).toLocaleTimeString([], {hour:'2-digit',minute:'2-digit'}) + '</div>';
+      box.appendChild(d);
+    });
+    if(wasAtBottom) box.scrollTop = box.scrollHeight;
+  }
+
+  async function sendMsg(){
+    const input = document.getElementById('chatInput');
+    const content = input.value.trim();
+    if(!content || !currentChatFriend) return;
+    input.value = '';
+    await fetch('/api/messages/'+currentChatFriend, {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({content})
+    });
+    loadMessages();
+  }
+
+  /* --- My Name Trades --- */
+  async function handleTradeResp(id){
+    const r = await fetch('/api/trade-responses/'+id+'/accept', {method:'POST'});
+    const d = await r.json();
+    if(d.success){showToast('Trade completed!');location.reload()}
+    else alert(d.error || 'Failed');
+  }
+
+  async function declineTradeResp(id){
+    await fetch('/api/trade-responses/'+id+'/decline', {method:'POST'});
+    document.getElementById('resp-'+id).remove();
+    showToast('Response declined');
+  }
+
+  async function cancelTrade(id){
+    if(!confirm('Cancel this trade?')) return;
+    await fetch('/api/trades/'+id+'/cancel', {method:'POST'});
+    document.getElementById('trade-'+id).remove();
+    showToast('Trade cancelled');
+  }
+</script>
+</body>
+</html>

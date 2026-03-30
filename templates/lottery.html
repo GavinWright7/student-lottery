@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Midnight Lottery — 100 Free Spins</title>
+<title>Today's Winner</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -17,14 +17,30 @@
 
   nav{
     width:100%;padding:1rem 2rem;
-    display:flex;justify-content:center;gap:2rem;
+    display:flex;align-items:center;
     background:rgba(255,255,255,.06);backdrop-filter:blur(10px);
   }
+  .nav-links{display:flex;gap:1.2rem;flex:1;justify-content:center;flex-wrap:wrap}
   nav a{
-    color:#c4b5fd;text-decoration:none;font-weight:600;font-size:.95rem;
-    padding:.5rem 1.2rem;border-radius:8px;transition:.2s;
+    color:#c4b5fd;text-decoration:none;font-weight:600;font-size:.9rem;
+    padding:.5rem 1rem;border-radius:8px;transition:.2s;position:relative;
   }
   nav a:hover,nav a.active{background:rgba(139,92,246,.3);color:#fff}
+  .badge{position:absolute;top:-4px;right:-6px;background:#ef4444;color:#fff;font-size:.65rem;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3}
+  .nav-right{display:flex;align-items:center;gap:.7rem}
+  .nav-user{color:#c4b5fd;font-weight:700;font-size:.85rem;white-space:nowrap}
+  .token-counter{
+    display:flex;align-items:center;gap:.4rem;
+    background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);
+    padding:.4rem .9rem;border-radius:20px;font-weight:700;font-size:.9rem;color:#fbbf24;
+    white-space:nowrap;
+  }
+  .token-coin{
+    width:18px;height:18px;border-radius:50%;
+    background:linear-gradient(135deg,#fbbf24,#f59e0b);
+    display:flex;align-items:center;justify-content:center;
+    font-size:.6rem;font-weight:800;color:#78350f;line-height:1;
+  }
 
   .container{
     flex:1;display:flex;flex-direction:column;align-items:center;
@@ -55,10 +71,11 @@
     background:radial-gradient(circle,rgba(251,191,36,.08) 0%,transparent 60%);
     pointer-events:none;
   }
-  .winner-card .trophy{font-size:3.5rem;margin-bottom:.8rem}
+  .winner-card .star{font-size:3.5rem;margin-bottom:.8rem}
   .winner-card .prize{font-size:1rem;color:#fbbf24;font-weight:600;letter-spacing:.06em;text-transform:uppercase}
   .winner-card .name{font-size:2rem;font-weight:800;margin:.6rem 0;line-height:1.2}
   .winner-card .date{font-size:.85rem;color:#94a3b8}
+  .winner-card .hint{font-size:.85rem;color:#c4b5fd;margin-top:.8rem;font-weight:600}
 
   .history{width:100%}
   .history h2{font-size:1.1rem;font-weight:700;margin-bottom:1rem;color:#94a3b8}
@@ -76,18 +93,30 @@
 <body>
 
 <nav>
-  <a href="/spin">Spin</a>
-  <a href="/lottery" class="active">Lottery</a>
-  <a href="/inventory">Inventory</a>
-  <a href="/logout">Logout</a>
+  <div class="nav-links">
+    <a href="/spin">Spin</a>
+    <a href="/lottery" class="active">Today's Winner</a>
+    <a href="/inventory">Inventory</a>
+    <a href="/decks">Decks</a>
+    <a href="/users">Users</a>
+    <a href="/inbox">Inbox{% if inbox_badge %}<span class="badge">{{ inbox_badge }}</span>{% endif %}</a>
+    <a href="/logout">Logout</a>
+  </div>
+  <div class="nav-right">
+    <span class="nav-user">{{ session.display_name }}</span>
+    <div class="token-counter">
+      <div class="token-coin">T</div>
+      <span>{{ tokens }}</span>
+    </div>
+  </div>
 </nav>
 
 <div class="container">
-  <h1>Midnight <span>100 Free Spins</span> Lottery</h1>
-  <p class="subtitle">One student wins 100 free spins every night at 12:00 AM</p>
+  <h1>Today's <span>Winner</span></h1>
+  <p class="subtitle">The student with the most tokens at midnight wins!</p>
 
   <div class="countdown-section">
-    <div class="countdown-label">Next drawing in</div>
+    <div class="countdown-label">Next winner decided in</div>
     <div class="countdown" id="countdown">
       <div class="unit"><div class="num" id="cdH">--</div><div class="lbl">Hours</div></div>
       <div class="unit"><div class="num" id="cdM">--</div><div class="lbl">Min</div></div>
@@ -96,10 +125,14 @@
   </div>
 
   <div class="winner-card">
-    <div class="trophy">&#127942;</div>
-    <div class="prize">Today's 100 Free Spins Winner</div>
-    <div class="name">{{ winner.name }}</div>
+    <div class="star">&#11088;</div>
+    <div class="prize">Today's Winner</div>
+    <div class="name">{{ winner.winner_name }}</div>
+    {% if winner.winner_tokens %}
+    <div class="date" style="font-size:1.1rem;color:#fbbf24;font-weight:700;margin:.4rem 0">{{ winner.winner_tokens }} tokens</div>
+    {% endif %}
     <div class="date">{{ winner.draw_date }}</div>
+    <div class="hint">Spin their name for 100 bonus tokens!</div>
   </div>
 
   {% if recent|length > 1 %}
@@ -108,7 +141,7 @@
     <div class="history-list">
       {% for w in recent %}
       <div class="history-item">
-        <span class="h-name">{{ w.name }}</span>
+        <span class="h-name">{{ w.winner_name }}{% if w.winner_tokens %} <span style="color:#fbbf24;font-size:.8rem">({{ w.winner_tokens }} tokens)</span>{% endif %}</span>
         <span class="h-date">{{ w.draw_date }}</span>
       </div>
       {% endfor %}

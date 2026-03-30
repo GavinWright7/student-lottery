@@ -7,138 +7,362 @@
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
   *{margin:0;padding:0;box-sizing:border-box}
-  body{
-    font-family:'Inter',sans-serif;min-height:100vh;
-    background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);
-    color:#fff;display:flex;flex-direction:column;align-items:center;
-  }
+  body{font-family:'Inter',sans-serif;min-height:100vh;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#fff;display:flex;flex-direction:column;align-items:center}
 
-  nav{
-    width:100%;padding:1rem 2rem;
-    display:flex;justify-content:center;gap:2rem;
-    background:rgba(255,255,255,.06);backdrop-filter:blur(10px);
-  }
-  nav a{
-    color:#c4b5fd;text-decoration:none;font-weight:600;font-size:.95rem;
-    padding:.5rem 1.2rem;border-radius:8px;transition:.2s;
-  }
+  nav{width:100%;padding:1rem 2rem;display:flex;align-items:center;background:rgba(255,255,255,.06);backdrop-filter:blur(10px)}
+  .nav-links{display:flex;gap:1.2rem;flex:1;justify-content:center;flex-wrap:wrap}
+  nav a{color:#c4b5fd;text-decoration:none;font-weight:600;font-size:.9rem;padding:.5rem 1rem;border-radius:8px;transition:.2s;position:relative}
   nav a:hover,nav a.active{background:rgba(139,92,246,.3);color:#fff}
+  .badge{position:absolute;top:-4px;right:-6px;background:#ef4444;color:#fff;font-size:.65rem;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3}
+  .nav-right{display:flex;align-items:center;gap:.7rem}
+  .nav-user{color:#c4b5fd;font-weight:700;font-size:.85rem;white-space:nowrap}
+  .token-counter{display:flex;align-items:center;gap:.4rem;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);padding:.4rem .9rem;border-radius:20px;font-weight:700;font-size:.9rem;color:#fbbf24;white-space:nowrap}
+  .token-coin{width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#fbbf24,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#78350f;line-height:1}
 
-  .container{
-    flex:1;display:flex;flex-direction:column;align-items:center;
-    padding:2rem;gap:1.5rem;max-width:650px;width:100%;
-  }
-  h1{font-size:2rem;font-weight:800;text-align:center}
-  h1 span{color:#a78bfa}
+  .container{flex:1;display:flex;flex-direction:column;align-items:center;padding:2rem;gap:1.5rem;max-width:700px;width:100%}
+  h1{font-size:2rem;font-weight:800;text-align:center} h1 span{color:#a78bfa}
   .stats{color:#94a3b8;font-size:.9rem;text-align:center}
   .stats em{font-style:normal;color:#a78bfa;font-weight:700}
 
+  .mode-bar{display:flex;gap:.5rem;width:100%}
+  .mode-btn{flex:1;padding:.6rem;font-size:.85rem;font-weight:700;border:2px solid rgba(139,92,246,.3);border-radius:10px;background:transparent;color:#c4b5fd;cursor:pointer;transition:.2s;text-align:center}
+  .mode-btn:hover{background:rgba(139,92,246,.1)}
+  .mode-btn.active{background:rgba(139,92,246,.2);color:#fff;border-color:#a78bfa}
+
+  .tab-panel{display:none;width:100%;flex-direction:column;gap:.6rem}
+  .tab-panel.active{display:flex}
+
+  /* Craft Trade actions */
+  .craft-actions{display:none;width:100%;gap:.5rem;flex-direction:column;align-items:center}
+  .craft-actions.show{display:flex}
+  .craft-hint{color:#94a3b8;font-size:.85rem;text-align:center}
+  .craft-btn{padding:.7rem 2rem;font-size:.95rem;font-weight:700;border:none;border-radius:10px;cursor:pointer;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;transition:transform .15s}
+  .craft-btn:hover{transform:translateY(-2px)}
+  .craft-btn:disabled{opacity:.4;cursor:not-allowed;transform:none}
+
+  /* Inventory cards */
   .grid{width:100%;display:flex;flex-direction:column;gap:.7rem}
-  .card{
-    display:flex;align-items:center;justify-content:space-between;
-    padding:1rem 1.2rem;border-radius:12px;
-    background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);
-    transition:border-color .3s;
-  }
+  .card{display:flex;align-items:center;justify-content:space-between;padding:1rem 1.2rem;border-radius:12px;background:rgba(255,255,255,.06);border:2px solid rgba(255,255,255,.1);transition:border-color .3s,background .2s}
+  .card.selectable{cursor:pointer}
+  .card.selected{border-color:#a78bfa;background:rgba(139,92,246,.12)}
   .card .info{display:flex;flex-direction:column;gap:.2rem}
   .card .card-name{font-weight:700;font-size:1.05rem}
   .card .card-rarity{font-size:.75rem;font-weight:700;text-transform:uppercase;letter-spacing:.08em}
-
-  .card.rarity-common{border-color:rgba(148,163,184,.3)}
-  .card.rarity-common .card-rarity{color:#94a3b8}
-
-  .card.rarity-rare{border-color:rgba(96,165,250,.4)}
-  .card.rarity-rare .card-rarity{color:#60a5fa}
-
-  .card.rarity-epic{border-color:rgba(168,85,247,.4)}
-  .card.rarity-epic .card-rarity{color:#a855f7}
-
-  .card.rarity-legendary{border-color:rgba(251,191,36,.4);box-shadow:0 0 15px rgba(251,191,36,.15)}
-  .card.rarity-legendary .card-rarity{color:#fbbf24}
-
-  .trade-btn{
-    padding:.5rem 1rem;font-size:.8rem;font-weight:700;border:none;border-radius:8px;
-    cursor:pointer;transition:transform .15s;color:#fff;
-  }
+  .card.rarity-common{border-color:rgba(148,163,184,.3)} .card.rarity-common .card-rarity{color:#94a3b8}
+  .card.rarity-rare{border-color:rgba(96,165,250,.4)} .card.rarity-rare .card-rarity{color:#60a5fa}
+  .card.rarity-epic{border-color:rgba(168,85,247,.4)} .card.rarity-epic .card-rarity{color:#a855f7}
+  .card.rarity-legendary{border-color:rgba(251,191,36,.4);box-shadow:0 0 15px rgba(251,191,36,.15)} .card.rarity-legendary .card-rarity{color:#fbbf24}
+  .card-actions{display:flex;gap:.4rem;align-items:center}
+  .trade-btn{padding:.5rem 1rem;font-size:.8rem;font-weight:700;border:none;border-radius:8px;cursor:pointer;transition:transform .15s;color:#fff}
   .trade-btn:hover{transform:translateY(-1px)}
   .trade-btn.rarity-common{background:rgba(148,163,184,.25)}
   .trade-btn.rarity-rare{background:rgba(96,165,250,.3)}
   .trade-btn.rarity-epic{background:rgba(168,85,247,.3)}
   .trade-btn.rarity-legendary{background:rgba(251,191,36,.3)}
 
-  .empty{text-align:center;color:#64748b;padding:3rem 1rem;font-size:1rem}
+  /* NameMarket */
+  .market-card{padding:1rem 1.2rem;border-radius:12px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1)}
+  .market-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:.5rem}
+  .market-header .user{font-weight:700;font-size:.95rem}
+  .market-items{display:flex;gap:.4rem;flex-wrap:wrap;margin:.4rem 0}
+  .market-chip{padding:.25rem .6rem;border-radius:6px;font-size:.75rem;font-weight:700;text-transform:uppercase}
+  .market-chip.common{background:rgba(148,163,184,.15);color:#94a3b8}
+  .market-chip.rare{background:rgba(96,165,250,.15);color:#60a5fa}
+  .market-chip.epic{background:rgba(168,85,247,.15);color:#a855f7}
+  .market-chip.legendary{background:rgba(251,191,36,.15);color:#fbbf24}
+  .respond-btn{padding:.5rem 1rem;font-size:.8rem;font-weight:700;border:none;border-radius:8px;cursor:pointer;color:#fff;background:linear-gradient(135deg,#7c3aed,#a78bfa);transition:transform .15s;margin-top:.5rem}
+  .respond-btn:hover{transform:translateY(-1px)}
 
-  .toast{
-    position:fixed;top:1.5rem;left:50%;transform:translateX(-50%) translateY(-100px);
-    background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.4);color:#34d399;
-    padding:.7rem 1.5rem;border-radius:10px;font-weight:600;font-size:.9rem;
-    transition:transform .3s ease;z-index:100;
-  }
-  .toast.show{transform:translateX(-50%) translateY(0)}
+  /* Respond modal */
+  .modal-overlay{display:none;position:fixed;inset:0;background:rgba(0,0,0,.7);z-index:60;justify-content:center;align-items:center}
+  .modal-overlay.show{display:flex}
+  .modal{background:linear-gradient(135deg,#1a1640,#2d2760);border:1px solid rgba(139,92,246,.3);border-radius:16px;width:90%;max-width:450px;padding:2rem;display:flex;flex-direction:column;gap:1rem}
+  .modal h3{font-size:1.1rem;font-weight:700;text-align:center}
+  .modal .inv-grid{display:flex;flex-direction:column;gap:.4rem;max-height:250px;overflow-y:auto}
+  .modal .inv-item{display:flex;align-items:center;gap:.6rem;padding:.5rem .8rem;border-radius:8px;background:rgba(255,255,255,.06);cursor:pointer;transition:.2s;border:2px solid transparent}
+  .modal .inv-item.selected{border-color:#a78bfa;background:rgba(139,92,246,.15)}
+  .modal .inv-item .ii-name{font-weight:600;font-size:.9rem}
+  .modal .inv-item .ii-rarity{font-size:.7rem;font-weight:700;text-transform:uppercase}
+  .modal .inv-item .ii-rarity.common{color:#94a3b8} .modal .inv-item .ii-rarity.rare{color:#60a5fa}
+  .modal .inv-item .ii-rarity.epic{color:#a855f7} .modal .inv-item .ii-rarity.legendary{color:#fbbf24}
+  .modal-actions{display:flex;gap:.5rem;justify-content:center}
+  .modal-actions button{padding:.6rem 1.5rem;font-size:.9rem;font-weight:700;border:none;border-radius:10px;cursor:pointer;color:#fff}
+  .modal-actions .confirm{background:linear-gradient(135deg,#7c3aed,#a78bfa)}
+  .modal-actions .cancel-btn{background:rgba(255,255,255,.1);color:#94a3b8}
 
+  .empty{text-align:center;color:#64748b;padding:2rem 1rem;font-size:1rem}
+  .toast{position:fixed;top:80px;right:-300px;background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.4);color:#34d399;padding:.7rem 1.5rem;border-radius:10px;font-weight:600;font-size:.9rem;transition:right .3s ease;z-index:100}
+  .toast.show{right:1.5rem}
   footer{padding:1.5rem;text-align:center;color:#475569;font-size:.8rem}
 </style>
 </head>
 <body>
-
 <nav>
-  <a href="/spin">Spin</a>
-  <a href="/lottery">Lottery</a>
-  <a href="/inventory" class="active">Inventory</a>
-  <a href="/logout">Logout</a>
+  <div class="nav-links">
+    <a href="/spin">Spin</a>
+    <a href="/lottery">Today's Winner</a>
+    <a href="/inventory" class="active">Inventory</a>
+    <a href="/decks">Decks</a>
+    <a href="/users">Users</a>
+    <a href="/inbox">Inbox{% if inbox_badge %}<span class="badge">{{ inbox_badge }}</span>{% endif %}</a>
+    <a href="/logout">Logout</a>
+  </div>
+  <div class="nav-right"><span class="nav-user">{{ session.display_name }}</span><div class="token-counter"><div class="token-coin">T</div><span id="navTokens">{{ tokens }}</span></div></div>
 </nav>
 
 <div class="container">
   <h1>Your <span>Inventory</span></h1>
-  <p class="stats"><em>{{ items|length }}</em> / 10 slots used &nbsp;|&nbsp; <em id="spinsCount">{{ spins_remaining }}</em> spins remaining</p>
+  <p class="stats"><em id="slotCount">{{ items|length }}</em> / 10 slots used &nbsp;|&nbsp; <em id="tokenCount">{{ tokens }}</em> tokens</p>
 
-  <div class="grid" id="grid">
-    {% if items %}
-      {% for item in items %}
-      <div class="card rarity-{{ item.rarity }}" id="card-{{ item.id }}">
-        <div class="info">
-          <span class="card-name">{{ item.name }}</span>
-          <span class="card-rarity">{{ item.rarity }}</span>
+  <div class="mode-bar">
+    <button class="mode-btn active" onclick="switchMode('manage')">Manage</button>
+    <button class="mode-btn" onclick="switchMode('craft')">Craft Trade</button>
+    <button class="mode-btn" onclick="switchMode('market')">NameMarket</button>
+  </div>
+
+  <!-- MANAGE TAB -->
+  <div class="tab-panel active" id="panel-manage">
+    <div class="grid" id="manageGrid">
+      {% if items %}
+        {% for item in items %}
+        <div class="card rarity-{{ item.rarity }}" id="card-{{ item.id }}">
+          <div class="info">
+            <span class="card-name">{{ item.name }}</span>
+            <span class="card-rarity">{{ item.rarity }}</span>
+          </div>
+          <div class="card-actions">
+            {% if trade_values.get(item.rarity, 0) > 0 %}
+            <button class="trade-btn rarity-{{ item.rarity }}" onclick="tradeForTokens({{ item.id }}, '{{ item.rarity }}')">
+              Trade for {{ trade_values.get(item.rarity, 0) }} tokens
+            </button>
+            {% endif %}
+            <button class="trade-btn rarity-common" onclick="discardCard({{ item.id }})">Discard</button>
+          </div>
         </div>
-        <button class="trade-btn rarity-{{ item.rarity }}" onclick="tradeItem({{ item.id }}, '{{ item.rarity }}')">
-          Trade for {{ trade_values.get(item.rarity, 1) }} spins
-        </button>
+        {% endfor %}
+      {% else %}
+        <div class="empty">Your inventory is empty. Spin and save names to collect them here!</div>
+      {% endif %}
+    </div>
+    {% if items %}
+    <div style="text-align:center;margin-top:1rem">
+      {% if has_published %}
+      <button class="craft-btn" disabled style="opacity:.4">Deck Published Today</button>
+      {% else %}
+      <button class="craft-btn" id="publishBtn" onclick="publishDeck()">Publish Daily Deck</button>
+      {% endif %}
+    </div>
+    {% endif %}
+  </div>
+
+  <!-- CRAFT TRADE TAB -->
+  <div class="tab-panel" id="panel-craft">
+    <div class="craft-actions show">
+      <p class="craft-hint">Tap cards to select them, then post to the NameMarket.</p>
+      <button class="craft-btn" id="craftBtn" onclick="postTrade()" disabled>Post Trade (0 selected)</button>
+    </div>
+    <div class="grid" id="craftGrid">
+      {% if items %}
+        {% for item in items %}
+        <div class="card rarity-{{ item.rarity }} selectable" data-id="{{ item.id }}" onclick="toggleCraftCard(this)">
+          <div class="info">
+            <span class="card-name">{{ item.name }}</span>
+            <span class="card-rarity">{{ item.rarity }}</span>
+          </div>
+        </div>
+        {% endfor %}
+      {% else %}
+        <div class="empty">Your inventory is empty.</div>
+      {% endif %}
+    </div>
+  </div>
+
+  <!-- NAMEMARKET TAB -->
+  <div class="tab-panel" id="panel-market">
+    {% if open_trades %}
+      {% for t in open_trades %}
+      <div class="market-card">
+        <div class="market-header">
+          <span class="user">{{ t.creator_name }}</span>
+        </div>
+        <p style="font-size:.8rem;color:#94a3b8">Offering:</p>
+        <div class="market-items">
+          {% for i in t.offer_items %}<span class="market-chip {{ i.rarity }}">{{ i.name }}</span>{% endfor %}
+        </div>
+        <button class="respond-btn" onclick="openRespondModal({{ t.id }})">Respond with Cards</button>
       </div>
       {% endfor %}
     {% else %}
-      <div class="empty">Your inventory is empty. Spin and save names to collect them here!</div>
+      <p class="empty">No open trades right now. Check back later!</p>
     {% endif %}
   </div>
 </div>
 
-<div class="toast" id="toast"></div>
+<!-- Respond to trade modal -->
+<div class="modal-overlay" id="respondModal">
+  <div class="modal">
+    <h3>Select cards to offer</h3>
+    <div class="inv-grid" id="respondInvGrid"></div>
+    <div class="modal-actions">
+      <button class="confirm" onclick="submitTradeResponse()">Send Offer</button>
+      <button class="cancel-btn" onclick="closeRespondModal()">Cancel</button>
+    </div>
+  </div>
+</div>
 
+<div class="toast" id="toast"></div>
 <footer>&copy; 2026 Student Lottery</footer>
 
 <script>
-  function showToast(msg) {
-    const t = document.getElementById('toast');
-    t.textContent = msg;
-    t.classList.add('show');
-    setTimeout(() => t.classList.remove('show'), 2500);
+  let selectedCraftCards = new Set();
+  const myInventory = [
+    {% for item in items %}
+    {id:{{ item.id }}, name:"{{ item.name }}", rarity:"{{ item.rarity }}"},
+    {% endfor %}
+  ];
+
+  function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+
+  /* --- Mode switching --- */
+  function switchMode(mode){
+    document.querySelectorAll('.mode-btn').forEach(b=>b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p=>p.classList.remove('active'));
+    event.target.classList.add('active');
+    document.getElementById('panel-'+mode).classList.add('active');
+    selectedCraftCards.clear();
+    updateCraftBtn();
+    document.querySelectorAll('#craftGrid .card').forEach(c=>c.classList.remove('selected'));
   }
 
-  async function tradeItem(id, rarity) {
-    if (!confirm('Trade this ' + rarity + ' name for spins?')) return;
-    const res = await fetch('/api/trade/' + id, {method: 'POST'});
+  /* --- Manage: trade for tokens --- */
+  async function tradeForTokens(id, rarity){
+    if(!confirm('Trade this ' + rarity + ' name for tokens?')) return;
+    const res = await fetch('/api/trade-for-tokens/' + id, {method:'POST'});
     const data = await res.json();
-    if (data.success) {
-      document.getElementById('card-' + id).remove();
-      document.getElementById('spinsCount').textContent = data.spins_remaining;
-      showToast('+' + data.spins_gained + ' spins!');
-      const remaining = document.querySelectorAll('.card').length;
-      document.querySelector('.stats em').textContent = remaining;
-      if (remaining === 0) {
-        document.getElementById('grid').innerHTML = '<div class="empty">Your inventory is empty. Spin and save names to collect them here!</div>';
-      }
+    if(data.success){
+      removeCardEverywhere(id);
+      document.getElementById('tokenCount').textContent = data.tokens;
+      document.getElementById('navTokens').textContent = data.tokens;
+      showToast('+' + data.tokens_gained + ' tokens!');
     } else {
       alert(data.error || 'Trade failed');
     }
+  }
+
+  function removeCardEverywhere(id){
+    document.querySelectorAll('[id="card-'+id+'"], [data-id="'+id+'"]').forEach(el=>el.remove());
+    selectedCraftCards.delete(id);
+    updateCraftBtn();
+    const remaining = document.querySelectorAll('#manageGrid .card').length;
+    document.getElementById('slotCount').textContent = remaining;
+    if(remaining === 0){
+      document.getElementById('manageGrid').innerHTML = '<div class="empty">Your inventory is empty. Spin and save names to collect them here!</div>';
+    }
+    if(!document.querySelectorAll('#craftGrid .card').length){
+      document.getElementById('craftGrid').innerHTML = '<div class="empty">No cards to trade.</div>';
+    }
+  }
+
+  async function discardCard(id){
+    if(!confirm('Discard this card? You won\'t get any tokens.')) return;
+    const res = await fetch('/api/discard/' + id, {method:'POST'});
+    const data = await res.json();
+    if(data.success){
+      removeCardEverywhere(id);
+      showToast('Card discarded');
+    } else {
+      alert(data.error || 'Discard failed');
+    }
+  }
+
+  /* --- Craft Trade --- */
+  function toggleCraftCard(card){
+    const id = parseInt(card.dataset.id);
+    if(selectedCraftCards.has(id)){selectedCraftCards.delete(id);card.classList.remove('selected')}
+    else{selectedCraftCards.add(id);card.classList.add('selected')}
+    updateCraftBtn();
+  }
+
+  function updateCraftBtn(){
+    const btn = document.getElementById('craftBtn');
+    const n = selectedCraftCards.size;
+    btn.disabled = n===0;
+    btn.textContent = 'Post Trade (' + n + ' selected)';
+  }
+
+  async function publishDeck(){
+    if(!confirm('Publish your current inventory as your daily deck?')) return;
+    const btn = document.getElementById('publishBtn');
+    btn.disabled = true; btn.textContent = 'Publishing...';
+    const r = await fetch('/api/publish-deck', {method:'POST'});
+    const d = await r.json();
+    if(d.success){
+      showToast('Deck published!');
+      btn.textContent = 'Deck Published Today';
+      btn.style.opacity = '.4';
+    } else {
+      alert(d.error || 'Failed');
+      btn.disabled = false; btn.textContent = 'Publish Daily Deck';
+    }
+  }
+
+  async function postTrade(){
+    if(!selectedCraftCards.size) return;
+    const r = await fetch('/api/trades', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({item_ids: Array.from(selectedCraftCards)})
+    });
+    const d = await r.json();
+    if(d.success){
+      showToast('Trade posted to NameMarket!');
+      selectedCraftCards.clear();
+      updateCraftBtn();
+      document.querySelectorAll('#craftGrid .card').forEach(c=>c.classList.remove('selected'));
+    } else {
+      alert(d.error || 'Failed');
+    }
+  }
+
+  /* --- NameMarket: respond to trade --- */
+  let respondTradeId = null;
+  let selectedRespondItems = new Set();
+
+  function openRespondModal(tradeId){
+    respondTradeId = tradeId;
+    selectedRespondItems.clear();
+    document.getElementById('respondModal').classList.add('show');
+    renderRespondInv();
+  }
+  function closeRespondModal(){document.getElementById('respondModal').classList.remove('show');respondTradeId=null}
+
+  function renderRespondInv(){
+    const grid = document.getElementById('respondInvGrid');
+    if(!myInventory.length){grid.innerHTML='<p class="empty">Your inventory is empty</p>';return}
+    grid.innerHTML = '';
+    myInventory.forEach(item => {
+      const d = document.createElement('div');
+      d.className = 'inv-item' + (selectedRespondItems.has(item.id) ? ' selected' : '');
+      d.innerHTML = '<span class="ii-name">'+item.name+'</span><span class="ii-rarity '+item.rarity+'">'+item.rarity+'</span>';
+      d.onclick = () => {
+        if(selectedRespondItems.has(item.id)) selectedRespondItems.delete(item.id);
+        else selectedRespondItems.add(item.id);
+        renderRespondInv();
+      };
+      grid.appendChild(d);
+    });
+  }
+
+  async function submitTradeResponse(){
+    if(!selectedRespondItems.size){alert('Select at least one card');return}
+    const r = await fetch('/api/trades/'+respondTradeId+'/respond', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({item_ids: Array.from(selectedRespondItems)})
+    });
+    const d = await r.json();
+    if(d.success){closeRespondModal();showToast('Trade offer sent! They\'ll see it in their Inbox.')}
+    else alert(d.error || 'Failed');
   }
 </script>
 </body>

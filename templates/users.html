@@ -1,0 +1,98 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Users — Student Lottery</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;min-height:100vh;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#fff;display:flex;flex-direction:column;align-items:center}
+
+  nav{width:100%;padding:1rem 2rem;display:flex;align-items:center;background:rgba(255,255,255,.06);backdrop-filter:blur(10px)}
+  .nav-links{display:flex;gap:1.2rem;flex:1;justify-content:center;flex-wrap:wrap}
+  nav a{color:#c4b5fd;text-decoration:none;font-weight:600;font-size:.9rem;padding:.5rem 1rem;border-radius:8px;transition:.2s;position:relative}
+  nav a:hover,nav a.active{background:rgba(139,92,246,.3);color:#fff}
+  .badge{position:absolute;top:-4px;right:-6px;background:#ef4444;color:#fff;font-size:.65rem;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3}
+  .nav-right{display:flex;align-items:center;gap:.7rem}
+  .nav-user{color:#c4b5fd;font-weight:700;font-size:.85rem;white-space:nowrap}
+  .token-counter{display:flex;align-items:center;gap:.4rem;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);padding:.4rem .9rem;border-radius:20px;font-weight:700;font-size:.9rem;color:#fbbf24;white-space:nowrap}
+  .token-coin{width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#fbbf24,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#78350f;line-height:1}
+
+  .container{flex:1;display:flex;flex-direction:column;align-items:center;padding:2rem;gap:1.5rem;max-width:650px;width:100%}
+  h1{font-size:2rem;font-weight:800;text-align:center} h1 span{color:#a78bfa}
+
+  .search-bar{width:100%;display:flex;gap:.5rem}
+  .search-bar input{flex:1;padding:.7rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#fff;font-size:.95rem;outline:none}
+  .search-bar input:focus{border-color:#a78bfa}
+  .search-bar button{padding:.7rem 1.2rem;border:none;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;font-weight:700;cursor:pointer}
+
+  .user-list{width:100%;display:flex;flex-direction:column;gap:.5rem}
+  .user-card{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+  .user-card .name{font-weight:700;font-size:1rem}
+  .action-btn{padding:.4rem 1rem;font-size:.8rem;font-weight:700;border:none;border-radius:8px;cursor:pointer;color:#fff;transition:transform .15s}
+  .action-btn:hover{transform:translateY(-1px)}
+  .action-btn.add{background:linear-gradient(135deg,#7c3aed,#a78bfa)}
+  .action-btn.pending{background:rgba(148,163,184,.25);cursor:default}
+  .action-btn.friends{background:rgba(52,211,153,.25);color:#34d399;cursor:default}
+
+  .toast{position:fixed;top:80px;right:-300px;background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.4);color:#34d399;padding:.7rem 1.5rem;border-radius:10px;font-weight:600;font-size:.9rem;transition:right .3s ease;z-index:100}
+  .toast.show{right:1.5rem}
+  footer{padding:1.5rem;text-align:center;color:#475569;font-size:.8rem}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-links">
+    <a href="/spin">Spin</a>
+    <a href="/lottery">Today's Winner</a>
+    <a href="/inventory">Inventory</a>
+    <a href="/decks">Decks</a>
+    <a href="/users" class="active">Users</a>
+    <a href="/inbox">Inbox{% if inbox_badge %}<span class="badge">{{ inbox_badge }}</span>{% endif %}</a>
+    <a href="/logout">Logout</a>
+  </div>
+  <div class="nav-right"><span class="nav-user">{{ session.display_name }}</span><div class="token-counter"><div class="token-coin">T</div><span>{{ tokens }}</span></div></div>
+</nav>
+
+<div class="container">
+  <h1>All <span>Users</span></h1>
+
+  <form class="search-bar" method="GET" action="/users">
+    <input type="text" name="q" placeholder="Search by name..." value="{{ search_q }}">
+    <button type="submit">Search</button>
+  </form>
+
+  <div class="user-list">
+    {% for u in all_users %}
+    <div class="user-card" id="user-{{ u.id }}">
+      <span class="name">{{ u.first_name }} {{ u.last_name }}</span>
+      {% if u.id in friends %}
+        <button class="action-btn friends" disabled>Friends</button>
+      {% elif u.id in pending_sent %}
+        <button class="action-btn pending" disabled>Pending</button>
+      {% else %}
+        <button class="action-btn add" onclick="addFriend({{ u.id }}, this)">Add Friend</button>
+      {% endif %}
+    </div>
+    {% else %}
+    <p style="color:#64748b;text-align:center;padding:2rem">No users found.</p>
+    {% endfor %}
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+<footer>&copy; 2026 Student Lottery</footer>
+
+<script>
+  function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+
+  async function addFriend(uid, btn){
+    btn.disabled=true; btn.textContent='...';
+    const r = await fetch('/api/friend-request/'+uid, {method:'POST'});
+    if(r.ok){btn.textContent='Pending';btn.className='action-btn pending';showToast('Friend request sent!')}
+    else{btn.disabled=false;btn.textContent='Add Friend'}
+  }
+</script>
+</body>
+</html>

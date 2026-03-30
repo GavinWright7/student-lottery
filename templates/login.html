@@ -46,8 +46,10 @@
   {% if messages %}{% for msg in messages %}<div class="flash">{{ msg }}</div>{% endfor %}{% endif %}
   {% endwith %}
   <form method="POST">
-    <label>Username</label>
-    <input type="text" name="username" required autocomplete="username">
+    <label>First Name</label>
+    <input type="text" name="first_name" required autocomplete="given-name">
+    <label>Last Name</label>
+    <input type="text" name="last_name" required autocomplete="family-name">
     <label>Password</label>
     <input type="password" name="password" required autocomplete="current-password">
     <button class="btn" type="submit">Log In</button>
