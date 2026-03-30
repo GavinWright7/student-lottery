@@ -7,6 +7,7 @@ Pages:
   /inventory  — View saved names, trade for tokens, craft trades
   /users      — Browse all users, send friend requests
   /inbox      — Requests, Messages, Open Trades
+  /leaderboard — Live token leaderboard (polls API)
   /login      — Log in
   /register   — Create an account
 """
@@ -739,6 +740,64 @@ def api_lottery_today():
             "winner_tokens": winner["winner_tokens"],
         })
     return jsonify({})
+
+
+@app.route("/leaderboard")
+@login_required
+def leaderboard_page():
+    user = get_current_user()
+    badge = get_inbox_counts(user["id"])
+    return render_template(
+        "leaderboard.html",
+        tokens=user["tokens"],
+        inbox_badge=badge,
+    )
+
+
+@app.route("/api/leaderboard")
+@login_required
+def api_leaderboard():
+    user = get_current_user()
+    db = get_db()
+    cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        """
+        SELECT id, first_name, last_name, tokens
+        FROM users
+        ORDER BY tokens DESC, created_at ASC, id ASC
+        LIMIT 100
+        """
+    )
+    rows = cur.fetchall()
+    entries = [
+        {
+            "rank": i + 1,
+            "id": r["id"],
+            "name": f"{r['first_name']} {r['last_name']}",
+            "tokens": r["tokens"],
+        }
+        for i, r in enumerate(rows)
+    ]
+    cur.execute(
+        """
+        WITH me AS (SELECT tokens, created_at, id FROM users WHERE id = %s)
+        SELECT 1 + COUNT(*)::int AS rk FROM users u2, me
+        WHERE u2.tokens > me.tokens
+           OR (u2.tokens = me.tokens AND u2.created_at < me.created_at)
+           OR (u2.tokens = me.tokens AND u2.created_at = me.created_at AND u2.id < me.id)
+        """,
+        (user["id"],),
+    )
+    my_rank = cur.fetchone()["rk"]
+    cur.execute("SELECT tokens FROM users WHERE id = %s", (user["id"],))
+    my_tokens = cur.fetchone()["tokens"]
+    cur.close()
+    return jsonify(
+        {
+            "entries": entries,
+            "you": {"id": user["id"], "rank": my_rank, "tokens": my_tokens},
+        }
+    )
 
 
 # ---------------------------------------------------------------------------

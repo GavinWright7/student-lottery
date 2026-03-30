@@ -1,0 +1,183 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Leaderboard — Student Lottery</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
+<style>
+  *{margin:0;padding:0;box-sizing:border-box}
+  body{font-family:'Inter',sans-serif;min-height:100vh;background:linear-gradient(135deg,#0f0c29,#302b63,#24243e);color:#fff;display:flex;flex-direction:column;align-items:center}
+
+  nav{width:100%;padding:1rem 2rem;display:flex;align-items:center;background:rgba(255,255,255,.06);backdrop-filter:blur(10px)}
+  .nav-links{display:flex;gap:1.2rem;flex:1;justify-content:center;flex-wrap:wrap}
+  nav a{color:#c4b5fd;text-decoration:none;font-weight:600;font-size:.9rem;padding:.5rem 1rem;border-radius:8px;transition:.2s;position:relative}
+  nav a:hover,nav a.active{background:rgba(139,92,246,.3);color:#fff}
+  .badge{position:absolute;top:-4px;right:-6px;background:#ef4444;color:#fff;font-size:.65rem;font-weight:800;padding:1px 5px;border-radius:10px;line-height:1.3}
+  .nav-right{display:flex;align-items:center;gap:.7rem}
+  .nav-user{color:#c4b5fd;font-weight:700;font-size:.85rem;white-space:nowrap}
+  .token-counter{display:flex;align-items:center;gap:.4rem;background:rgba(251,191,36,.1);border:1px solid rgba(251,191,36,.3);padding:.4rem .9rem;border-radius:20px;font-weight:700;font-size:.9rem;color:#fbbf24;white-space:nowrap}
+  .token-coin{width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#fbbf24,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#78350f;line-height:1}
+
+  .container{flex:1;display:flex;flex-direction:column;align-items:center;padding:2rem;gap:1rem;max-width:520px;width:100%}
+  h1{font-size:2rem;font-weight:800;text-align:center} h1 span{color:#a78bfa}
+  .live-row{display:flex;align-items:center;justify-content:center;gap:.5rem;flex-wrap:wrap;color:#94a3b8;font-size:.85rem}
+  .live-dot{width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 10px #34d399;animation:livePulse 1.2s ease-in-out infinite}
+  @keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.65;transform:scale(.9)}}
+  .live-meta{color:#64748b;font-size:.75rem;text-align:center}
+
+  .board{width:100%;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.1);border-radius:14px;overflow:hidden}
+  .board-head{display:grid;grid-template-columns:2.5rem 1fr auto;gap:.5rem;padding:.65rem 1rem;font-size:.7rem;font-weight:700;text-transform:uppercase;letter-spacing:.06em;color:#64748b;background:rgba(0,0,0,.2);border-bottom:1px solid rgba(255,255,255,.08)}
+  .board-body{max-height:min(60vh,420px);overflow-y:auto}
+  .lb-row{display:grid;grid-template-columns:2.5rem 1fr auto;gap:.5rem;align-items:center;padding:.65rem 1rem;font-size:.9rem;border-bottom:1px solid rgba(255,255,255,.06)}
+  .lb-row:last-child{border-bottom:none}
+  .lb-row.you{background:rgba(139,92,246,.18);border-left:3px solid #a78bfa}
+  .lb-rank{font-weight:800;color:#94a3b8;font-variant-numeric:tabular-nums}
+  .lb-rank.gold{color:#fbbf24} .lb-rank.silver{color:#cbd5e1} .lb-rank.bronze{color:#d97706}
+  .lb-name{font-weight:600;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+  .lb-tok{font-weight:800;color:#fbbf24;font-variant-numeric:tabular-nums}
+  .you-summary{margin-top:.5rem;text-align:center;font-size:.85rem;color:#c4b5fd}
+  .you-summary em{font-style:normal;color:#fbbf24;font-weight:800}
+  .board-loading,.board-error{padding:2rem;text-align:center;color:#64748b;font-size:.9rem}
+
+  footer{padding:1.5rem;text-align:center;color:#475569;font-size:.8rem}
+</style>
+</head>
+<body>
+<nav>
+  <div class="nav-links">
+    <a href="/spin">Spin</a>
+    <a href="/lottery">Today's Winner</a>
+    <a href="/inventory">Inventory</a>
+    <a href="/decks">Decks</a>
+    <a href="/leaderboard" class="active">Leaderboard</a>
+    <a href="/users">Users</a>
+    <a href="/inbox">Inbox{% if inbox_badge %}<span class="badge">{{ inbox_badge }}</span>{% endif %}</a>
+    <a href="/logout">Logout</a>
+  </div>
+  <div class="nav-right">
+    <span class="nav-user">{{ session.display_name }}</span>
+    <div class="token-counter">
+      <div class="token-coin">T</div>
+      <span id="navTokens">{{ tokens }}</span>
+    </div>
+  </div>
+</nav>
+
+<div class="container">
+  <h1>Token <span>Leaderboard</span></h1>
+  <p style="text-align:center;color:#94a3b8;font-size:.88rem;max-width:28rem;line-height:1.4">Top 100 balances, same tie-break as Student of the Day (tokens, then earliest account). Updates every few seconds while this tab is open.</p>
+  <div class="live-row">
+    <span class="live-dot" aria-hidden="true"></span>
+    <span>Live</span>
+    <span class="live-meta" id="lastSync">Updating…</span>
+  </div>
+
+  <div class="board" id="board">
+    <div class="board-loading" id="boardLoading">Loading ranks…</div>
+  </div>
+  <p class="you-summary" id="youSummary" style="display:none"></p>
+</div>
+
+<footer>&copy; 2026 Student Lottery</footer>
+
+<script>
+  const POLL_MS = 2500;
+  let pollTimer = null;
+
+  function rankClass(r){
+    if(r === 1) return 'lb-rank gold';
+    if(r === 2) return 'lb-rank silver';
+    if(r === 3) return 'lb-rank bronze';
+    return 'lb-rank';
+  }
+
+  function renderBoard(data){
+    const board = document.getElementById('board');
+    const you = data.you;
+    const navEl = document.getElementById('navTokens');
+    if(navEl && you) navEl.textContent = you.tokens;
+
+    const summary = document.getElementById('youSummary');
+    if(you && summary){
+      summary.style.display = 'block';
+      summary.innerHTML = 'You: rank <em>#' + you.rank + '</em> — <em>' + you.tokens + '</em> tokens';
+    }
+
+    if(!data.entries || !data.entries.length){
+      board.innerHTML = '<div class="board-error">No players yet.</div>';
+      return;
+    }
+
+    const head = document.createElement('div');
+    head.className = 'board-head';
+    head.innerHTML = '<span>#</span><span>Name</span><span>Tokens</span>';
+
+    const body = document.createElement('div');
+    body.className = 'board-body';
+
+    data.entries.forEach(row => {
+      const r = document.createElement('div');
+      r.className = 'lb-row' + (row.id === you.id ? ' you' : '');
+      const rk = document.createElement('span');
+      rk.className = rankClass(row.rank);
+      rk.textContent = row.rank;
+      const nm = document.createElement('span');
+      nm.className = 'lb-name';
+      nm.textContent = row.name;
+      const tk = document.createElement('span');
+      tk.className = 'lb-tok';
+      tk.textContent = row.tokens;
+      r.appendChild(rk);
+      r.appendChild(nm);
+      r.appendChild(tk);
+      body.appendChild(r);
+    });
+
+    board.innerHTML = '';
+    board.appendChild(head);
+    board.appendChild(body);
+
+    const sync = document.getElementById('lastSync');
+    if(sync){
+      const t = new Date();
+      sync.textContent = 'Refreshed ' + t.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+    }
+  }
+
+  async function fetchBoard(){
+    try{
+      const r = await fetch('/api/leaderboard');
+      if(!r.ok) throw new Error('bad response');
+      const d = await r.json();
+      renderBoard(d);
+    } catch(e){
+      const board = document.getElementById('board');
+      const load = document.getElementById('boardLoading');
+      if(load) load.remove();
+      if(board && !board.querySelector('.board-body')){
+        board.innerHTML = '<div class="board-error">Could not load leaderboard. Retrying…</div>';
+      }
+    }
+  }
+
+  function startPoll(){
+    clearInterval(pollTimer);
+    pollTimer = setInterval(fetchBoard, POLL_MS);
+  }
+
+  document.addEventListener('visibilitychange', () => {
+    if(document.hidden){
+      clearInterval(pollTimer);
+      pollTimer = null;
+    } else {
+      fetchBoard();
+      startPoll();
+    }
+  });
+
+  fetchBoard();
+  startPoll();
+</script>
+</body>
+</html>
