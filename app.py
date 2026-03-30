@@ -553,6 +553,15 @@ def save_to_inventory():
         return jsonify({"error": "inventory_full", "count": count, "max": MAX_INVENTORY}), 400
 
     cur.execute(
+        "SELECT 1 FROM inventory WHERE user_id = %s AND LOWER(name) = LOWER(%s) LIMIT 1",
+        (user["id"], name),
+    )
+    if cur.fetchone():
+        db.rollback()
+        cur.close()
+        return jsonify({"error": "duplicate_name", "message": "That name is already in your inventory."}), 400
+
+    cur.execute(
         "INSERT INTO inventory (user_id, name, rarity) VALUES (%s, %s, %s)",
         (user["id"], name, rarity),
     )

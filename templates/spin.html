@@ -358,6 +358,14 @@
 
   async function saveToInventory(replaceId) {
     if (!lastWinner) return;
+    const nameLower = lastWinner.toLowerCase();
+    const dupElsewhere = inventoryItems.some(i =>
+      String(i.name).toLowerCase() === nameLower && (!replaceId || i.id !== replaceId)
+    );
+    if (dupElsewhere) {
+      showToast('That name is already in your inventory.');
+      return;
+    }
     saveBtn.disabled = true;
     const payload = {name: lastWinner, rarity: lastRarity};
     if (replaceId) payload.replace_id = replaceId;
@@ -379,16 +387,31 @@
       closeReplaceOverlay();
     } else if (data.error === 'inventory_full' && !replaceId) {
       openReplaceOverlay();
-    } else {
-      alert(data.error || 'Failed to save');
+    } else if (data.error === 'duplicate_name') {
+      showToast(data.message || 'That name is already in your inventory.');
       saveBtn.disabled = false;
+      if (replaceId) {
+        const c = document.getElementById('replaceConfirmBtn');
+        c.disabled = false;
+        c.textContent = selectedReplaceCardName ? ('Replace ' + selectedReplaceCardName) : 'Replace';
+      }
+    } else {
+      alert(data.message || data.error || 'Failed to save');
+      saveBtn.disabled = false;
+      if (replaceId) {
+        const c = document.getElementById('replaceConfirmBtn');
+        c.disabled = false;
+        c.textContent = selectedReplaceCardName ? ('Replace ' + selectedReplaceCardName) : 'Replace';
+      }
     }
   }
 
   let selectedReplaceId = null;
+  let selectedReplaceCardName = null;
 
   function openReplaceOverlay() {
     selectedReplaceId = null;
+    selectedReplaceCardName = null;
     document.getElementById('replaceNewName').textContent = lastWinner;
     const rSpan = document.getElementById('replaceNewRarity');
     rSpan.textContent = rarityNames[lastRarity] || lastRarity;
@@ -413,6 +436,7 @@
     document.querySelectorAll('#replaceList .replace-card').forEach(c => c.classList.remove('selected'));
     el.classList.add('selected');
     selectedReplaceId = id;
+    selectedReplaceCardName = name;
     const confirmBtn = document.getElementById('replaceConfirmBtn');
     confirmBtn.disabled = false;
     confirmBtn.textContent = 'Replace ' + name;
@@ -429,6 +453,7 @@
   function closeReplaceOverlay() {
     document.getElementById('replaceOverlay').classList.remove('show');
     selectedReplaceId = null;
+    selectedReplaceCardName = null;
     saveBtn.disabled = false;
   }
 
