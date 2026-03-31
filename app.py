@@ -3,7 +3,7 @@ Student Lottery Web App
 =======================
 Pages:
   /spin       — Spend 1 token to spin for a random student name
-  /lottery    — Student of the Day: match the name for 100 free tokens
+  /lottery    — Daily $50 cash winner (broadcast Tue–Sun); jackpot name match on spin
   /inventory  — View saved names, trade for tokens, craft trades
   /users      — Browse all users, send friend requests
   /inbox      — Requests, Messages, Open Trades
@@ -15,7 +15,7 @@ Pages:
 import csv
 import os
 import random
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from pathlib import Path
 from functools import wraps
 
@@ -140,6 +140,20 @@ def init_db():
             END IF;
         END $$;
     """)
+
+    cur.execute("ALTER TABLE daily_winners ADD COLUMN IF NOT EXISTS broadcast_date DATE")
+    cur.execute(
+        """
+        UPDATE daily_winners SET broadcast_date = draw_date
+        WHERE broadcast_date IS NULL
+        """
+    )
+    cur.execute(
+        """
+        CREATE UNIQUE INDEX IF NOT EXISTS idx_daily_winners_broadcast_date
+        ON daily_winners (broadcast_date) WHERE broadcast_date IS NOT NULL
+        """
+    )
 
     # --- Social / trade tables ---
 
@@ -312,50 +326,88 @@ def _auto_trade_all_inventory(cur):
 
 
 def draw_student_of_the_day():
+    """Return the winner row shown today, if any.
+
+    A broadcast runs Tue–Sun (not Mon): the first request that day finalizes *yesterday's*
+    contest (inventory auto-traded, top tokens), stores draw_date=yesterday and
+    broadcast_date=today. Monday is always blank so Sunday's contest resolves Tuesday.
+    """
+    today = date.today()
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("SELECT * FROM daily_winners WHERE draw_date = %s", (date.today(),))
+    cur.execute(
+        """
+        SELECT * FROM daily_winners
+        WHERE (broadcast_date IS NOT NULL AND broadcast_date = %s)
+           OR (broadcast_date IS NULL AND draw_date = %s)
+        """,
+        (today, today),
+    )
     row = cur.fetchone()
     if row:
         cur.close()
         return row
 
-    # Auto-trade all inventory into tokens first
+    # Monday = competition day only; name is revealed starting Tuesday for Mon's contest.
+    if today.weekday() == 0:
+        cur.close()
+        return None
+
     _auto_trade_all_inventory(cur)
     db.commit()
 
-    # The winner is the user with the most tokens
-    cur.execute("""
+    cur.execute(
+        """
         SELECT id, first_name, last_name, tokens
-        FROM users ORDER BY tokens DESC, created_at ASC LIMIT 1
-    """)
+        FROM users ORDER BY tokens DESC, created_at ASC, id ASC
+        LIMIT 1
+        """
+    )
     top_user = cur.fetchone()
     if not top_user:
         cur.close()
         return None
 
+    contest_date = today - timedelta(days=1)
     winner_name = f"{top_user['first_name']} {top_user['last_name']}"
     cur.execute(
-        """INSERT INTO daily_winners (draw_date, winner_user_id, winner_name, winner_tokens)
-           VALUES (%s, %s, %s, %s) ON CONFLICT DO NOTHING RETURNING *""",
-        (date.today(), top_user["id"], winner_name, top_user["tokens"]),
+        """
+        INSERT INTO daily_winners (draw_date, broadcast_date, winner_user_id, winner_name, winner_tokens)
+        VALUES (%s, %s, %s, %s, %s)
+        ON CONFLICT (draw_date) DO NOTHING
+        RETURNING *
+        """,
+        (contest_date, today, top_user["id"], winner_name, top_user["tokens"]),
     )
     row = cur.fetchone()
     db.commit()
-    cur.close()
     if row:
+        cur.close()
         return row
-    cur2 = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur2.execute("SELECT * FROM daily_winners WHERE draw_date = %s", (date.today(),))
-    row = cur2.fetchone()
-    cur2.close()
+    cur.execute(
+        """
+        SELECT * FROM daily_winners
+        WHERE (broadcast_date IS NOT NULL AND broadcast_date = %s)
+           OR (broadcast_date IS NULL AND draw_date = %s)
+        """,
+        (today, today),
+    )
+    row = cur.fetchone()
+    cur.close()
     return row
 
 
 def get_recent_winners(limit=7):
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("SELECT * FROM daily_winners ORDER BY draw_date DESC LIMIT %s", (limit,))
+    cur.execute(
+        """
+        SELECT * FROM daily_winners
+        ORDER BY COALESCE(broadcast_date, draw_date) DESC, draw_date DESC
+        LIMIT %s
+        """,
+        (limit,),
+    )
     rows = cur.fetchall()
     cur.close()
     return rows
@@ -734,11 +786,15 @@ def lottery_page():
 def api_lottery_today():
     winner = draw_student_of_the_day()
     if winner:
-        return jsonify({
+        out = {
             "draw_date": str(winner["draw_date"]),
             "winner_name": winner["winner_name"],
             "winner_tokens": winner["winner_tokens"],
-        })
+        }
+        bd = winner.get("broadcast_date")
+        if bd:
+            out["broadcast_date"] = str(bd)
+        return jsonify(out)
     return jsonify({})
 
 
