@@ -46,6 +46,7 @@ if "channel_binding" in DATABASE_URL:
 
 CSV_FILE = "student_directory_names.csv"
 FREE_TOKENS = 10
+DAILY_MIDNIGHT_TOKENS = 10
 TOKEN_PRICE_CENTS = 99
 TOKENS_PER_PURCHASE = 10
 MAX_INVENTORY = 10
@@ -108,6 +109,14 @@ def init_db():
             END IF;
         END $$;
     """)
+
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_daily_token_grant_date DATE")
+    cur.execute(
+        """
+        UPDATE users SET last_daily_token_grant_date = CURRENT_DATE
+        WHERE last_daily_token_grant_date IS NULL
+        """
+    )
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS inventory (
@@ -297,11 +306,31 @@ def login_required(f):
 def get_current_user():
     if "user_id" not in session:
         return None
+    if getattr(g, "_current_user_loaded", False):
+        return g._current_user
+
+    uid = session["user_id"]
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("SELECT * FROM users WHERE id = %s", (session["user_id"],))
+    today = date.today()
+    cur.execute(
+        """
+        UPDATE users SET tokens = tokens + %s, last_daily_token_grant_date = %s
+        WHERE id = %s AND (last_daily_token_grant_date IS NULL OR last_daily_token_grant_date < %s)
+        RETURNING *
+        """,
+        (DAILY_MIDNIGHT_TOKENS, today, uid, today),
+    )
     user = cur.fetchone()
+    if user:
+        db.commit()
+    else:
+        db.rollback()
+        cur.execute("SELECT * FROM users WHERE id = %s", (uid,))
+        user = cur.fetchone()
     cur.close()
+    g._current_user_loaded = True
+    g._current_user = user
     return user
 
 
@@ -460,8 +489,11 @@ def register_page():
         cur = db.cursor()
         try:
             cur.execute(
-                "INSERT INTO users (first_name, last_name, password_hash, tokens) VALUES (%s, %s, %s, %s) RETURNING id",
-                (first_name, last_name, generate_password_hash(password), FREE_TOKENS),
+                """
+                INSERT INTO users (first_name, last_name, password_hash, tokens, last_daily_token_grant_date)
+                VALUES (%s, %s, %s, %s, %s) RETURNING id
+                """,
+                (first_name, last_name, generate_password_hash(password), FREE_TOKENS, date.today()),
             )
             user_id = cur.fetchone()[0]
             db.commit()
