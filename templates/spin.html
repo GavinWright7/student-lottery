@@ -159,11 +159,11 @@
   .jackpot-banner p{color:#c4b5fd;font-size:1rem}
 
   .paywall{
-    display:none;flex-direction:column;align-items:center;gap:1.2rem;
+    display:flex;flex-direction:column;align-items:center;gap:1.2rem;
     background:rgba(255,255,255,.08);border:1px solid rgba(139,92,246,.35);
     border-radius:16px;padding:2rem;width:100%;text-align:center;
   }
-  .paywall.show{display:flex}
+  .paywall.out-of-tokens{border-color:rgba(251,191,36,.45);background:rgba(251,191,36,.06)}
   .paywall h2{font-size:1.3rem;font-weight:700}
   .paywall p{color:#94a3b8;font-size:.95rem;line-height:1.5}
   .pay-btn{
@@ -262,9 +262,9 @@
   </div>
 
   <div class="paywall" id="paywall">
-    <h2>Out of tokens!</h2>
-    <p>Purchase 10 tokens for $0.99 to keep spinning.</p>
-    <button class="pay-btn" onclick="buyTokens()">Buy 10 Tokens &mdash; $0.99</button>
+    <h2 id="paywallHeading">Get more tokens</h2>
+    <p id="paywallText">Buy 10 tokens for $0.99 anytime while you spin.</p>
+    <button type="button" class="pay-btn" onclick="buyTokens()">Buy 10 Tokens &mdash; $0.99</button>
   </div>
 </div>
 
@@ -338,12 +338,18 @@
   function updateUI() {
     document.getElementById('tokenCount').textContent = tokens;
     document.getElementById('navTokens').textContent = tokens;
+    const ph = document.getElementById('paywallHeading');
+    const pt = document.getElementById('paywallText');
     if (tokens <= 0) {
       spinBtn.disabled = true;
-      paywall.classList.add('show');
+      paywall.classList.add('out-of-tokens');
+      ph.textContent = 'Out of tokens!';
+      pt.textContent = 'Purchase 10 tokens for $0.99 to keep spinning.';
     } else {
       spinBtn.disabled = false;
-      paywall.classList.remove('show');
+      paywall.classList.remove('out-of-tokens');
+      ph.textContent = 'Get more tokens';
+      pt.textContent = 'Buy 10 tokens for $0.99 anytime while you spin.';
     }
   }
 
@@ -357,13 +363,18 @@
   let inventoryItems = {{ inv_items | tojson }};
   const maxInventory = {{ max_inventory }};
 
+  function inventoryHasNameExcept(nameLower, excludeId) {
+    return inventoryItems.some(i => {
+      if (String(i.name).toLowerCase() !== nameLower) return false;
+      if (excludeId == null) return true;
+      return Number(i.id) !== Number(excludeId);
+    });
+  }
+
   async function saveToInventory(replaceId) {
     if (!lastWinner) return;
     const nameLower = lastWinner.toLowerCase();
-    const dupElsewhere = inventoryItems.some(i =>
-      String(i.name).toLowerCase() === nameLower && (!replaceId || i.id !== replaceId)
-    );
-    if (dupElsewhere) {
+    if (inventoryHasNameExcept(nameLower, replaceId != null ? replaceId : undefined)) {
       showToast('That name is already in your inventory.');
       return;
     }
@@ -379,11 +390,13 @@
     if (data.success) {
       showToast(data.message);
       saveBtn.textContent = 'Saved!';
+      saveBtn.disabled = true;
       sessionStorage.removeItem('lastSpin');
       if (replaceId) {
-        inventoryItems = inventoryItems.filter(i => i.id !== replaceId);
+        inventoryItems = inventoryItems.filter(i => Number(i.id) !== Number(replaceId));
       }
-      inventoryItems.push({id: Date.now(), name: lastWinner, rarity: lastRarity});
+      const newId = data.id != null ? data.id : Date.now();
+      inventoryItems.push({id: newId, name: lastWinner, rarity: lastRarity});
       document.getElementById('invCount').textContent = data.inv_count;
       closeReplaceOverlay();
     } else if (data.error === 'inventory_full' && !replaceId) {
@@ -489,9 +502,14 @@
     winnerEl.textContent = '';
     clearRarity();
 
-    const fetchPromise = fetch('/api/spin', {method:'POST'}).then(r => {
+    const fetchPromise = fetch('/api/spin', {method: 'POST'}).then(async r => {
       if (r.status === 403) return null;
-      return r.json();
+      if (!r.ok) return null;
+      try {
+        return await r.json();
+      } catch (e) {
+        return null;
+      }
     });
 
     const itemH = 80;
@@ -524,7 +542,13 @@
 
     const [data] = await Promise.all([fetchPromise, spinFast()]);
 
-    if (!data) { spinning = false; updateUI(); return; }
+    if (!data) {
+      spinning = false;
+      spinBtn.disabled = tokens <= 0;
+      updateUI();
+      setActionButtons(!!lastWinner);
+      return;
+    }
 
     lastReelCache = data.reel;
 

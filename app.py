@@ -717,7 +717,9 @@ def save_to_inventory():
 @app.route("/api/directory-search", methods=["GET"])
 @login_required
 def directory_search():
-    """Search student directory names (substring match). Used by inventory easter egg."""
+    """Search student directory names; only when admin session is active."""
+    if not session.get("admin_token_gift"):
+        return jsonify({"error": "forbidden"}), 403
     q = request.args.get("q", "").strip().lower()
     if not q:
         return jsonify({"results": []})
@@ -756,9 +758,19 @@ def inventory_page():
 
     cur.close()
     badge = get_inbox_counts(user["id"])
-    return render_template("inventory.html", items=items, trade_values=TRADE_VALUES,
-                           tokens=user["tokens"], inbox_badge=badge, open_trades=open_trades,
-                           has_published=has_published)
+    show_directory_search = False
+    if session.pop("inventory_directory_once", False) and session.get("admin_token_gift"):
+        show_directory_search = True
+    return render_template(
+        "inventory.html",
+        items=items,
+        trade_values=TRADE_VALUES,
+        tokens=user["tokens"],
+        inbox_badge=badge,
+        open_trades=open_trades,
+        has_published=has_published,
+        show_directory_search=show_directory_search,
+    )
 
 
 @app.route("/api/trade-for-tokens/<int:item_id>", methods=["POST"])
@@ -985,6 +997,7 @@ def users_page():
 @login_required
 def admin_unlock():
     session["admin_token_gift"] = True
+    session["inventory_directory_once"] = True
     return jsonify({"success": True})
 
 

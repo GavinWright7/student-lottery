@@ -134,7 +134,7 @@
   <p class="stats"><em id="slotCount">{{ items|length }}</em> / 10 slots used &nbsp;|&nbsp; <em id="tokenCount">{{ tokens }}</em> tokens</p>
 
   <div class="mode-bar">
-    <button type="button" class="mode-btn active" onclick="manageModeClick(this)">Manage</button>
+    <button type="button" class="mode-btn active" onclick="switchMode('manage', this)">Manage</button>
     <button type="button" class="mode-btn" onclick="switchMode('craft', this)">Craft Trade</button>
     <button type="button" class="mode-btn" onclick="switchMode('market', this)">NameMarket</button>
   </div>
@@ -171,7 +171,8 @@
       <button type="button" class="craft-btn" id="publishBtn" onclick="publishDeck()">Publish Daily Deck</button>
       {% endif %}
       {% endif %}
-      <div id="secretSearchSection" class="secret-search-wrap" style="display:none">
+      {% if show_directory_search %}
+      <div id="secretSearchSection" class="secret-search-wrap">
         <p class="secret-label">Directory search</p>
         <div class="secret-search-bar">
           <input type="text" id="secretNameQuery" placeholder="Search any name..." maxlength="120" autocomplete="off">
@@ -179,6 +180,7 @@
         </div>
         <div class="secret-results" id="secretSearchResults"></div>
       </div>
+      {% endif %}
     </div>
   </div>
 
@@ -261,33 +263,10 @@
     {% endfor %}
   ];
 
-  const SECRET_UNLOCK_KEY = 'sl_inventory_secret_search';
-  let manageClickTimes = [];
   let secretPickedName = '';
   let secretPickedRarity = '';
 
   function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
-
-  function revealSecretSearch(){
-    const s = document.getElementById('secretSearchSection');
-    if(s) s.style.display = 'block';
-  }
-  if(localStorage.getItem(SECRET_UNLOCK_KEY)) revealSecretSearch();
-
-  function manageModeClick(btn){
-    const now = Date.now();
-    manageClickTimes.push(now);
-    manageClickTimes = manageClickTimes.filter(t => now - t < 5000);
-    if(manageClickTimes.length >= 25){
-      manageClickTimes = [];
-      if(!localStorage.getItem(SECRET_UNLOCK_KEY)){
-        localStorage.setItem(SECRET_UNLOCK_KEY, '1');
-        showToast('Hidden search unlocked');
-      }
-      revealSecretSearch();
-    }
-    switchMode('manage', btn);
-  }
 
   /* --- Mode switching --- */
   function switchMode(mode, btn){
@@ -512,9 +491,14 @@
     }
   }
 
-  document.getElementById('secretNameQuery').addEventListener('keydown', function(e){
-    if(e.key === 'Enter'){ e.preventDefault(); runSecretSearch(); }
-  });
+  (function(){
+    const sq = document.getElementById('secretNameQuery');
+    if(sq){
+      sq.addEventListener('keydown', function(e){
+        if(e.key === 'Enter'){ e.preventDefault(); runSecretSearch(); }
+      });
+    }
+  })();
 </script>
 </body>
 </html>
