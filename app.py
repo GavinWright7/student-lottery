@@ -980,12 +980,12 @@ def users_page():
 
     q = request.args.get("q", "").strip()
     if q:
-        cur.execute("""SELECT id, first_name, last_name, created_at FROM users
+        cur.execute("""SELECT id, first_name, last_name, created_at, tokens FROM users
                         WHERE (first_name || ' ' || last_name) ILIKE %s AND id != %s
                         ORDER BY LOWER(last_name), LOWER(first_name)""",
                      (f"%{q}%", user["id"]))
     else:
-        cur.execute("""SELECT id, first_name, last_name, created_at FROM users
+        cur.execute("""SELECT id, first_name, last_name, created_at, tokens FROM users
                         WHERE id != %s
                         ORDER BY LOWER(last_name), LOWER(first_name)""",
                      (user["id"],))

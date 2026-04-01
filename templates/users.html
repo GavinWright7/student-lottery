@@ -39,9 +39,13 @@
   .action-btn.pending{background:rgba(148,163,184,.25);cursor:default}
   .action-btn.friends{background:rgba(52,211,153,.25);color:#34d399;cursor:default}
 
-  .admin-gift-row{display:none;flex-direction:row;flex-wrap:wrap;align-items:center;gap:.4rem;padding-top:.35rem;border-top:1px solid rgba(255,255,255,.06)}
+  .admin-gift-row{display:none;flex-direction:column;gap:.45rem;padding-top:.45rem;border-top:1px solid rgba(255,255,255,.06)}
   .admin-gift-row.show{display:flex}
-  .admin-gift-row input{width:110px;padding:.45rem .6rem;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:.85rem}
+  .admin-gift-meta{display:flex;flex-wrap:wrap;align-items:center;gap:.5rem;font-size:.8rem;color:#94a3b8}
+  .admin-gift-meta .bal{color:#fbbf24;font-weight:800;font-variant-numeric:tabular-nums}
+  .admin-gift-hint{font-size:.72rem;color:#64748b;line-height:1.35}
+  .admin-gift-controls{display:flex;flex-wrap:wrap;align-items:center;gap:.4rem}
+  .admin-gift-row input{width:120px;padding:.45rem .6rem;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:.85rem}
   .admin-gift-row input:focus{outline:none;border-color:#a78bfa}
   .gift-btn{padding:.4rem .75rem;font-size:.75rem;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#059669,#34d399);color:#fff}
   .gift-btn:disabled{opacity:.5;cursor:not-allowed}
@@ -88,8 +92,14 @@
         {% endif %}
       </div>
       <div class="admin-gift-row" data-uid="{{ u.id }}">
-        <input type="number" step="1" class="gift-input" id="gift-{{ u.id }}" placeholder="+/− tokens" aria-label="Token amount">
-        <button type="button" class="gift-btn" onclick="sendGift({{ u.id }}, this)">Apply</button>
+        <div class="admin-gift-meta">
+          <span>Tokens: <span class="bal" id="adminBal-{{ u.id }}">{{ u.tokens }}</span></span>
+        </div>
+        <p class="admin-gift-hint">Positive adds tokens; negative removes (e.g. <code style="color:#a78bfa">-25</code> takes 25). Balance cannot go below 0.</p>
+        <div class="admin-gift-controls">
+          <input type="number" step="1" class="gift-input" id="gift-{{ u.id }}" placeholder="e.g. 100 or -30" aria-label="Token change amount">
+          <button type="button" class="gift-btn" onclick="sendGift({{ u.id }}, this)">Apply</button>
+        </div>
       </div>
     </div>
     {% else %}
@@ -168,6 +178,8 @@
     btn.disabled = false;
     if(r.ok && d.success){
       showToast('Tokens updated');
+      const balEl = document.getElementById('adminBal-'+uid);
+      if(balEl && typeof d.tokens === 'number') balEl.textContent = d.tokens;
       if(typeof d.your_tokens === 'number'){
         const nav = document.getElementById('navTokens');
         if(nav) nav.textContent = d.your_tokens;
