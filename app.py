@@ -387,28 +387,30 @@ def _run_midnight_token_reset():
 # Student of the Day logic
 # ---------------------------------------------------------------------------
 
-def _auto_trade_all_inventory(cur):
-    """Convert every user's inventory into tokens based on rarity, then clear inventory."""
-    cur.execute("SELECT id, user_id, rarity FROM inventory")
-    items = cur.fetchall()
-    user_bonus = {}
-    for item in items:
-        uid = item["user_id"]
-        tokens = TRADE_VALUES.get(item["rarity"], 0)
-        user_bonus[uid] = user_bonus.get(uid, 0) + tokens
-    for uid, bonus in user_bonus.items():
-        if bonus > 0:
-            cur.execute("UPDATE users SET tokens = tokens + %s WHERE id = %s", (bonus, uid))
-    cur.execute("DELETE FROM inventory")
-    cur.execute("DELETE FROM published_decks")
+def get_broadcast_winner_row_readonly():
+    """Today's daily-winner row if it exists. Does not mutate DB (safe for /api/spin)."""
+    today = date.today()
+    db = get_db()
+    cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        """
+        SELECT * FROM daily_winners
+        WHERE (broadcast_date IS NOT NULL AND broadcast_date = %s)
+           OR (broadcast_date IS NULL AND draw_date = %s)
+        """,
+        (today, today),
+    )
+    row = cur.fetchone()
+    cur.close()
+    return row
 
 
 def draw_student_of_the_day():
-    """Return the winner row shown today, if any.
+    """Return the winner row shown today, creating it if needed (lottery / public API only).
 
-    A broadcast runs Tue–Sun (not Mon): the first request that day finalizes *yesterday's*
-    contest (inventory auto-traded, top tokens), stores draw_date=yesterday and
-    broadcast_date=today. Monday is always blank so Sunday's contest resolves Tuesday.
+    Tue–Sun (not Mon): first call that day records yesterday's contest winner from top *tokens*
+    and today's broadcast. Player **inventory is never cleared** here—cards only leave via
+    discard, trade, or replace. Published decks reset when the new broadcast row is created.
     """
     today = date.today()
     db = get_db()
@@ -431,8 +433,7 @@ def draw_student_of_the_day():
         cur.close()
         return None
 
-    _auto_trade_all_inventory(cur)
-    db.commit()
+    cur.execute("DELETE FROM published_decks")
 
     cur.execute(
         """
@@ -443,6 +444,7 @@ def draw_student_of_the_day():
     )
     top_user = cur.fetchone()
     if not top_user:
+        db.rollback()
         cur.close()
         return None
 
@@ -647,8 +649,8 @@ def api_spin():
         rarity = "common"
 
     jackpot = False
-    today = draw_student_of_the_day()
-    if today and winner.lower() == today["winner_name"].lower():
+    broadcast_row = get_broadcast_winner_row_readonly()
+    if broadcast_row and winner.lower() == broadcast_row["winner_name"].lower():
         jackpot = True
         rarity = "legendary"
 
