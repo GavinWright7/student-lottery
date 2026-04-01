@@ -10,6 +10,7 @@ Pages:
   /leaderboard — Live token leaderboard (polls API)
   /login      — Log in
   /register   — Create an account
+  /forgot-password — Name check, then set new password
 """
 
 import csv
@@ -18,6 +19,7 @@ import random
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from functools import wraps
+from zoneinfo import ZoneInfo
 
 from dotenv import load_dotenv
 load_dotenv(Path(__file__).resolve().parent / ".env", override=True)
@@ -46,6 +48,11 @@ if "channel_binding" in DATABASE_URL:
 
 CSV_FILE = "student_directory_names.csv"
 FREE_TOKENS = 10
+# Calendar date used for daily token reset + leaderboard baseline (first request after local midnight).
+DAILY_RESET_TZ = os.environ.get("DAILY_RESET_TZ", "America/New_York").strip() or "UTC"
+# Runs once per deploy DB until bumped if we need another baseline reset.
+TOKENS_BASELINE_MIGRATION_ID = 1
+TOKEN_RESET_SESSION_KEY = "pwd_reset_user_id"
 TOKEN_PRICE_CENTS = 99
 ADMIN_GIFT_MAX_ABS = 1_000_000
 TOKENS_PER_PURCHASE = 10
@@ -60,6 +67,15 @@ TRADE_VALUES = {
 }
 
 ALLOWED_INVENTORY_RARITIES = frozenset(TRADE_VALUES.keys())
+
+
+def reset_calendar_date():
+    """Calendar date in DAILY_RESET_TZ — daily token reset runs on first request after local midnight."""
+    try:
+        return datetime.now(ZoneInfo(DAILY_RESET_TZ)).date()
+    except Exception:
+        return date.today()
+
 
 # ---------------------------------------------------------------------------
 # Database
@@ -280,8 +296,35 @@ def init_db():
         ON CONFLICT (id) DO NOTHING
         """
     )
+    cur.execute(
+        "ALTER TABLE app_global_state ADD COLUMN IF NOT EXISTS data_migration_version INTEGER NOT NULL DEFAULT 0"
+    )
 
     conn.commit()
+    cur.close()
+    conn.close()
+
+    # One-time: set every user to FREE_TOKENS and align daily reset clock (separate connection after DDL).
+    conn = psycopg2.connect(DATABASE_URL)
+    cur = conn.cursor()
+    cur.execute("SELECT data_migration_version FROM app_global_state WHERE id = 1")
+    row = cur.fetchone()
+    mig = row[0] if row else 0
+    today_reset = reset_calendar_date()
+    if mig < TOKENS_BASELINE_MIGRATION_ID:
+        cur.execute(
+            "UPDATE users SET tokens = %s, last_daily_token_grant_date = %s",
+            (FREE_TOKENS, today_reset),
+        )
+        cur.execute(
+            """
+            UPDATE app_global_state
+            SET data_migration_version = %s, last_token_reset_date = %s
+            WHERE id = 1
+            """,
+            (TOKENS_BASELINE_MIGRATION_ID, today_reset),
+        )
+        conn.commit()
     cur.close()
     conn.close()
 
@@ -339,13 +382,13 @@ def get_current_user():
 
 
 def ensure_daily_token_reset():
-    """Once per calendar day (server local): set every user's tokens to FREE_TOKENS."""
+    """Once per calendar day (DAILY_RESET_TZ): set every user's tokens to FREE_TOKENS (leaderboard follows)."""
     if getattr(g, "_daily_token_reset_checked", False):
         return
     g._daily_token_reset_checked = True
     db = get_db()
     cur = db.cursor()
-    today = date.today()
+    today = reset_calendar_date()
     try:
         cur.execute("BEGIN")
         cur.execute("SELECT pg_advisory_xact_lock(928374651)")
@@ -548,6 +591,7 @@ def register_page():
             )
             user_id = cur.fetchone()[0]
             db.commit()
+            session.pop(TOKEN_RESET_SESSION_KEY, None)
             session["user_id"] = user_id
             session["display_name"] = full_name
             return redirect(url_for("spin_page"))
@@ -575,12 +619,73 @@ def login_page():
         user = cur.fetchone()
         cur.close()
         if user and check_password_hash(user["password_hash"], password):
+            session.pop(TOKEN_RESET_SESSION_KEY, None)
             session["user_id"] = user["id"]
             session["display_name"] = f"{user['first_name']} {user['last_name']}"
             return redirect(url_for("spin_page"))
         flash("Invalid name or password.")
         return redirect(url_for("login_page"))
     return render_template("login.html")
+
+
+@app.route("/forgot-password", methods=["GET", "POST"])
+def forgot_password_page():
+    if request.method == "POST":
+        first_name = request.form.get("first_name", "").strip()
+        last_name = request.form.get("last_name", "").strip()
+        if not first_name or not last_name:
+            flash("Enter your first and last name.")
+            return redirect(url_for("forgot_password_page"))
+        db = get_db()
+        cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute(
+            "SELECT id FROM users WHERE LOWER(first_name)=LOWER(%s) AND LOWER(last_name)=LOWER(%s)",
+            (first_name, last_name),
+        )
+        row = cur.fetchone()
+        cur.close()
+        if not row:
+            flash("No account found with that name.")
+            return redirect(url_for("forgot_password_page"))
+        session[TOKEN_RESET_SESSION_KEY] = row["id"]
+        flash("Choose a new password below.")
+        return redirect(url_for("reset_password_page"))
+    return render_template("forgot_password.html")
+
+
+@app.route("/reset-password", methods=["GET", "POST"])
+def reset_password_page():
+    uid = session.get(TOKEN_RESET_SESSION_KEY)
+    if not uid:
+        flash("Start from Forgot password with your name.")
+        return redirect(url_for("forgot_password_page"))
+    if request.method == "POST":
+        password = request.form.get("password", "").strip()
+        confirm = request.form.get("confirm_password", "").strip()
+        if len(password) < 4:
+            flash("Password must be at least 4 characters.")
+            return redirect(url_for("reset_password_page"))
+        if password != confirm:
+            flash("Passwords do not match.")
+            return redirect(url_for("reset_password_page"))
+        db = get_db()
+        cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+        cur.execute("SELECT id FROM users WHERE id = %s", (uid,))
+        if not cur.fetchone():
+            cur.close()
+            session.pop(TOKEN_RESET_SESSION_KEY, None)
+            flash("Account not found.")
+            return redirect(url_for("forgot_password_page"))
+        cur.execute(
+            "UPDATE users SET password_hash = %s WHERE id = %s",
+            (generate_password_hash(password), uid),
+        )
+        db.commit()
+        cur.close()
+        session.pop(TOKEN_RESET_SESSION_KEY, None)
+        flash("Password updated. Log in with your new password.")
+        return redirect(url_for("login_page"))
+    return render_template("reset_password.html")
 
 
 @app.route("/logout")
