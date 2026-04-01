@@ -20,7 +20,9 @@
   .token-coin{width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#fbbf24,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#78350f;line-height:1}
 
   .container{flex:1;display:flex;flex-direction:column;align-items:center;padding:2rem;gap:1.5rem;max-width:650px;width:100%}
-  h1{font-size:2rem;font-weight:800;text-align:center} h1 span{color:#a78bfa}
+  h1{font-size:2rem;font-weight:800;text-align:center;line-height:1.2} h1 span{color:#a78bfa}
+  .all-tap{cursor:pointer;user-select:none;border-bottom:1px dashed rgba(167,139,250,.4);transition:color .15s}
+  .all-tap:hover{color:#e9d5ff}
 
   .search-bar{width:100%;display:flex;gap:.5rem}
   .search-bar input{flex:1;padding:.7rem 1rem;border-radius:10px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.05);color:#fff;font-size:.95rem;outline:none}
@@ -28,13 +30,21 @@
   .search-bar button{padding:.7rem 1.2rem;border:none;border-radius:10px;background:linear-gradient(135deg,#7c3aed,#a78bfa);color:#fff;font-weight:700;cursor:pointer}
 
   .user-list{width:100%;display:flex;flex-direction:column;gap:.5rem}
-  .user-card{display:flex;align-items:center;justify-content:space-between;padding:.8rem 1.2rem;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+  .user-card{display:flex;flex-direction:column;gap:.5rem;padding:.8rem 1.2rem;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid rgba(255,255,255,.08)}
+  .user-card .uc-top{display:flex;align-items:center;justify-content:space-between;gap:.6rem;flex-wrap:wrap}
   .user-card .name{font-weight:700;font-size:1rem}
   .action-btn{padding:.4rem 1rem;font-size:.8rem;font-weight:700;border:none;border-radius:8px;cursor:pointer;color:#fff;transition:transform .15s}
   .action-btn:hover{transform:translateY(-1px)}
   .action-btn.add{background:linear-gradient(135deg,#7c3aed,#a78bfa)}
   .action-btn.pending{background:rgba(148,163,184,.25);cursor:default}
   .action-btn.friends{background:rgba(52,211,153,.25);color:#34d399;cursor:default}
+
+  .admin-gift-row{display:none;flex-direction:row;flex-wrap:wrap;align-items:center;gap:.4rem;padding-top:.35rem;border-top:1px solid rgba(255,255,255,.06)}
+  .admin-gift-row.show{display:flex}
+  .admin-gift-row input{width:110px;padding:.45rem .6rem;border-radius:8px;border:1px solid rgba(255,255,255,.15);background:rgba(255,255,255,.06);color:#fff;font-size:.85rem}
+  .admin-gift-row input:focus{outline:none;border-color:#a78bfa}
+  .gift-btn{padding:.4rem .75rem;font-size:.75rem;font-weight:700;border:none;border-radius:8px;cursor:pointer;background:linear-gradient(135deg,#059669,#34d399);color:#fff}
+  .gift-btn:disabled{opacity:.5;cursor:not-allowed}
 
   .toast{position:fixed;top:80px;right:-300px;background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.4);color:#34d399;padding:.7rem 1.5rem;border-radius:10px;font-weight:600;font-size:.9rem;transition:right .3s ease;z-index:100}
   .toast.show{right:1.5rem}
@@ -53,11 +63,11 @@
     <a href="/inbox">Inbox{% if inbox_badge %}<span class="badge">{{ inbox_badge }}</span>{% endif %}</a>
     <a href="/logout">Logout</a>
   </div>
-  <div class="nav-right"><span class="nav-user">{{ session.display_name }}</span><div class="token-counter"><div class="token-coin">T</div><span>{{ tokens }}</span></div></div>
+  <div class="nav-right"><span class="nav-user">{{ session.display_name }}</span><div class="token-counter"><div class="token-coin">T</div><span id="navTokens">{{ tokens }}</span></div></div>
 </nav>
 
 <div class="container">
-  <h1>All <span>Users</span></h1>
+  <h1><span class="all-tap" id="allTapWord" role="button" tabindex="0">All</span> <span>Users</span></h1>
 
   <form class="search-bar" method="GET" action="/users">
     <input type="text" name="q" placeholder="Search by name..." value="{{ search_q }}">
@@ -67,14 +77,20 @@
   <div class="user-list">
     {% for u in all_users %}
     <div class="user-card" id="user-{{ u.id }}">
-      <span class="name">{{ u.first_name }} {{ u.last_name }}</span>
-      {% if u.id in friends %}
-        <button class="action-btn friends" disabled>Friends</button>
-      {% elif u.id in pending_sent %}
-        <button class="action-btn pending" disabled>Pending</button>
-      {% else %}
-        <button class="action-btn add" onclick="addFriend({{ u.id }}, this)">Add Friend</button>
-      {% endif %}
+      <div class="uc-top">
+        <span class="name">{{ u.first_name }} {{ u.last_name }}</span>
+        {% if u.id in friends %}
+          <button type="button" class="action-btn friends" disabled>Friends</button>
+        {% elif u.id in pending_sent %}
+          <button type="button" class="action-btn pending" disabled>Pending</button>
+        {% else %}
+          <button type="button" class="action-btn add" onclick="addFriend({{ u.id }}, this)">Add Friend</button>
+        {% endif %}
+      </div>
+      <div class="admin-gift-row" data-uid="{{ u.id }}">
+        <input type="number" step="1" class="gift-input" id="gift-{{ u.id }}" placeholder="+/− tokens" aria-label="Token amount">
+        <button type="button" class="gift-btn" onclick="sendGift({{ u.id }}, this)">Apply</button>
+      </div>
     </div>
     {% else %}
     <p style="color:#64748b;text-align:center;padding:2rem">No users found.</p>
@@ -86,13 +102,80 @@
 <footer>&copy; 2026 Student Lottery</footer>
 
 <script>
+  const ADMIN_LS = 'sl_users_admin_unlock';
+  let allTapTimes = [];
+
   function showToast(msg){const t=document.getElementById('toast');t.textContent=msg;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2500)}
+
+  async function serverUnlock(){
+    const r = await fetch('/api/admin/unlock', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    return r.ok;
+  }
+
+  function revealAdminRows(){
+    document.querySelectorAll('.admin-gift-row').forEach(el => el.classList.add('show'));
+  }
+
+  async function ensureAdminSession(){
+    if(!localStorage.getItem(ADMIN_LS)) return false;
+    if(await serverUnlock()){ revealAdminRows(); return true; }
+    return false;
+  }
+
+  function onAllTap(){
+    const now = Date.now();
+    allTapTimes.push(now);
+    allTapTimes = allTapTimes.filter(t => now - t < 5000);
+    if(allTapTimes.length >= 25){
+      allTapTimes = [];
+      localStorage.setItem(ADMIN_LS, '1');
+      serverUnlock().then(ok => {
+        if(ok){
+          revealAdminRows();
+          showToast('Admin tools unlocked');
+        }
+      });
+    }
+  }
+
+  document.getElementById('allTapWord').addEventListener('click', function(e){ e.preventDefault(); onAllTap(); });
+  document.getElementById('allTapWord').addEventListener('keydown', function(e){
+    if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); onAllTap(); }
+  });
+
+  ensureAdminSession();
 
   async function addFriend(uid, btn){
     btn.disabled=true; btn.textContent='...';
     const r = await fetch('/api/friend-request/'+uid, {method:'POST'});
     if(r.ok){btn.textContent='Pending';btn.className='action-btn pending';showToast('Friend request sent!')}
     else{btn.disabled=false;btn.textContent='Add Friend'}
+  }
+
+  async function sendGift(uid, btn){
+    const inp = document.getElementById('gift-'+uid);
+    const raw = inp.value.trim();
+    if(raw === ''){ showToast('Enter an amount'); return; }
+    const amount = parseInt(raw, 10);
+    if(Number.isNaN(amount) || amount === 0){ showToast('Use a non-zero whole number'); return; }
+    btn.disabled = true;
+    const r = await fetch('/api/admin/gift-tokens', {
+      method:'POST',
+      headers:{'Content-Type':'application/json'},
+      body: JSON.stringify({user_id: uid, amount: amount})
+    });
+    const d = await r.json().catch(() => ({}));
+    btn.disabled = false;
+    if(r.ok && d.success){
+      showToast('Tokens updated');
+      if(typeof d.your_tokens === 'number'){
+        const nav = document.getElementById('navTokens');
+        if(nav) nav.textContent = d.your_tokens;
+      }
+      inp.value = '';
+    } else {
+      alert(d.error || 'Not allowed');
+    }
   }
 </script>
 </body>

@@ -5,7 +5,7 @@ Pages:
   /spin       — Spend 1 token to spin for a random student name
   /lottery    — Daily $50 cash winner (broadcast Tue–Sun); jackpot name match on spin
   /inventory  — View saved names, trade for tokens, craft trades
-  /users      — Browse all users, send friend requests
+  /users      — Browse all users, send friend requests (hidden admin token gift)
   /inbox      — Requests, Messages, Open Trades
   /leaderboard — Live token leaderboard (polls API)
   /login      — Log in
@@ -46,8 +46,8 @@ if "channel_binding" in DATABASE_URL:
 
 CSV_FILE = "student_directory_names.csv"
 FREE_TOKENS = 10
-DAILY_MIDNIGHT_TOKENS = 10
 TOKEN_PRICE_CENTS = 99
+ADMIN_GIFT_MAX_ABS = 1_000_000
 TOKENS_PER_PURCHASE = 10
 MAX_INVENTORY = 10
 JACKPOT_BONUS = 100
@@ -267,6 +267,20 @@ def init_db():
         );
     """)
 
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS app_global_state (
+            id INTEGER PRIMARY KEY CHECK (id = 1),
+            last_token_reset_date DATE NOT NULL
+        );
+    """)
+    cur.execute(
+        """
+        INSERT INTO app_global_state (id, last_token_reset_date)
+        VALUES (1, CURRENT_DATE)
+        ON CONFLICT (id) DO NOTHING
+        """
+    )
+
     conn.commit()
     cur.close()
     conn.close()
@@ -312,26 +326,57 @@ def get_current_user():
     uid = session["user_id"]
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    today = date.today()
-    cur.execute(
-        """
-        UPDATE users SET tokens = tokens + %s, last_daily_token_grant_date = %s
-        WHERE id = %s AND (last_daily_token_grant_date IS NULL OR last_daily_token_grant_date < %s)
-        RETURNING *
-        """,
-        (DAILY_MIDNIGHT_TOKENS, today, uid, today),
-    )
+    cur.execute("SELECT * FROM users WHERE id = %s", (uid,))
     user = cur.fetchone()
-    if user:
-        db.commit()
-    else:
-        db.rollback()
-        cur.execute("SELECT * FROM users WHERE id = %s", (uid,))
-        user = cur.fetchone()
     cur.close()
     g._current_user_loaded = True
     g._current_user = user
     return user
+
+
+def ensure_daily_token_reset():
+    """Once per calendar day (server local): set every user's tokens to FREE_TOKENS."""
+    if getattr(g, "_daily_token_reset_checked", False):
+        return
+    g._daily_token_reset_checked = True
+    db = get_db()
+    cur = db.cursor()
+    today = date.today()
+    try:
+        cur.execute("BEGIN")
+        cur.execute("SELECT pg_advisory_xact_lock(928374651)")
+        cur.execute("SELECT last_token_reset_date FROM app_global_state WHERE id = 1 FOR UPDATE")
+        row = cur.fetchone()
+        if row and row[0] >= today:
+            db.commit()
+            return
+        cur.execute(
+            "UPDATE users SET tokens = %s, last_daily_token_grant_date = %s",
+            (FREE_TOKENS, today),
+        )
+        if row:
+            cur.execute(
+                "UPDATE app_global_state SET last_token_reset_date = %s WHERE id = 1",
+                (today,),
+            )
+        else:
+            cur.execute(
+                "INSERT INTO app_global_state (id, last_token_reset_date) VALUES (1, %s)",
+                (today,),
+            )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        cur.close()
+
+
+@app.before_request
+def _run_midnight_token_reset():
+    if not DATABASE_URL:
+        return
+    ensure_daily_token_reset()
 
 
 # ---------------------------------------------------------------------------
@@ -934,6 +979,62 @@ def users_page():
     return render_template("users.html", all_users=all_users, related=related,
                            pending_sent=pending_sent, friends=friends,
                            tokens=user["tokens"], inbox_badge=badge, search_q=q)
+
+
+@app.route("/api/admin/unlock", methods=["POST"])
+@login_required
+def admin_unlock():
+    session["admin_token_gift"] = True
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/gift-tokens", methods=["POST"])
+@login_required
+def admin_gift_tokens():
+    if not session.get("admin_token_gift"):
+        return jsonify({"error": "not allowed"}), 403
+    data = request.get_json(silent=True) or {}
+    try:
+        target_id = int(data.get("user_id", 0))
+        amount = int(data.get("amount", 0))
+    except (TypeError, ValueError):
+        return jsonify({"error": "invalid payload"}), 400
+    if target_id <= 0:
+        return jsonify({"error": "bad user"}), 400
+    if amount == 0:
+        return jsonify({"error": "amount must be non-zero"}), 400
+    if abs(amount) > ADMIN_GIFT_MAX_ABS:
+        return jsonify({"error": "amount out of range"}), 400
+
+    db = get_db()
+    cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute("SELECT id FROM users WHERE id = %s", (target_id,))
+    if not cur.fetchone():
+        cur.close()
+        return jsonify({"error": "user not found"}), 404
+    cur.execute(
+        """
+        UPDATE users SET tokens = GREATEST(0, tokens + %s)
+        WHERE id = %s
+        RETURNING tokens
+        """,
+        (amount, target_id),
+    )
+    row = cur.fetchone()
+    db.commit()
+    cur.close()
+    new_bal = row["tokens"]
+    g._current_user_loaded = False
+    g._current_user = None
+    me = get_current_user()
+    return jsonify(
+        {
+            "success": True,
+            "user_id": target_id,
+            "tokens": new_bal,
+            "your_tokens": me["tokens"] if me else None,
+        }
+    )
 
 
 @app.route("/api/friend-request/<int:target_id>", methods=["POST"])
