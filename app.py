@@ -312,6 +312,10 @@ def login_required(f):
     @wraps(f)
     def wrapped(*args, **kwargs):
         if "user_id" not in session:
+            if request.path.startswith("/api/"):
+                return jsonify(
+                    {"error": "login_required", "message": "Please log in again."}
+                ), 401
             return redirect(url_for("login_page"))
         return f(*args, **kwargs)
     return wrapped
@@ -600,12 +604,24 @@ def spin_page():
     badge = get_inbox_counts(user["id"])
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute("SELECT * FROM inventory WHERE user_id = %s ORDER BY saved_at DESC", (user["id"],))
-    inv_items = cur.fetchall()
+    cur.execute(
+        "SELECT id, name, rarity FROM inventory WHERE user_id = %s ORDER BY saved_at DESC",
+        (user["id"],),
+    )
+    rows = cur.fetchall()
     cur.close()
-    return render_template("spin.html", tokens=user["tokens"], name_pool=sample,
-                           inbox_badge=badge, inv_items=inv_items,
-                           inv_count=len(inv_items), max_inventory=MAX_INVENTORY)
+    inv_items = [
+        {"id": int(r["id"]), "name": r["name"], "rarity": r["rarity"]} for r in rows
+    ]
+    return render_template(
+        "spin.html",
+        tokens=user["tokens"],
+        name_pool=sample,
+        inbox_badge=badge,
+        inv_items=inv_items,
+        inv_count=len(inv_items),
+        max_inventory=MAX_INVENTORY,
+    )
 
 
 @app.route("/api/spin", methods=["POST"])
@@ -663,9 +679,13 @@ def api_spin():
 @app.route("/api/save-to-inventory", methods=["POST"])
 @login_required
 def save_to_inventory():
-    data = request.get_json()
-    name = data.get("name", "").strip()
-    rarity = data.get("rarity", "common")
+    data = request.get_json(silent=True) or {}
+    name = (data.get("name") or "").strip()
+    rarity = (data.get("rarity") or "common")
+    if isinstance(rarity, str):
+        rarity = rarity.lower().strip()
+    else:
+        rarity = "common"
     replace_id = data.get("replace_id")
     if not name:
         return jsonify({"error": "No name provided"}), 400

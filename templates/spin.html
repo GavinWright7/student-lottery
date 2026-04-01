@@ -363,30 +363,33 @@
   let inventoryItems = {{ inv_items | tojson }};
   const maxInventory = {{ max_inventory }};
 
-  function inventoryHasNameExcept(nameLower, excludeId) {
-    return inventoryItems.some(i => {
-      if (String(i.name).toLowerCase() !== nameLower) return false;
-      if (excludeId == null) return true;
-      return Number(i.id) !== Number(excludeId);
-    });
-  }
-
   async function saveToInventory(replaceId) {
     if (!lastWinner) return;
-    const nameLower = lastWinner.toLowerCase();
-    if (inventoryHasNameExcept(nameLower, replaceId != null ? replaceId : undefined)) {
-      showToast('That name is already in your inventory.');
+    saveBtn.disabled = true;
+    const payload = {name: lastWinner, rarity: lastRarity || 'common'};
+    if (replaceId != null && replaceId !== '') payload.replace_id = replaceId;
+    let res;
+    try {
+      res = await fetch('/api/save-to-inventory', {
+        method: 'POST',
+        headers: {'Content-Type': 'application/json'},
+        credentials: 'same-origin',
+        body: JSON.stringify(payload),
+      });
+    } catch (e) {
+      saveBtn.disabled = false;
+      showToast('Network error — could not save.');
       return;
     }
-    saveBtn.disabled = true;
-    const payload = {name: lastWinner, rarity: lastRarity};
-    if (replaceId) payload.replace_id = replaceId;
-    const res = await fetch('/api/save-to-inventory', {
-      method: 'POST',
-      headers: {'Content-Type':'application/json'},
-      body: JSON.stringify(payload),
-    });
-    const data = await res.json();
+    let data = {};
+    try {
+      const text = await res.text();
+      data = text ? JSON.parse(text) : {};
+    } catch (e) {
+      saveBtn.disabled = false;
+      alert('Save failed: server returned an invalid response. Try logging in again.');
+      return;
+    }
     if (data.success) {
       showToast(data.message);
       saveBtn.textContent = 'Saved!';
@@ -399,6 +402,9 @@
       inventoryItems.push({id: newId, name: lastWinner, rarity: lastRarity});
       document.getElementById('invCount').textContent = data.inv_count;
       closeReplaceOverlay();
+    } else if (data.error === 'login_required' || res.status === 401) {
+      saveBtn.disabled = false;
+      alert('Your session expired. Please refresh the page and log in again.');
     } else if (data.error === 'inventory_full' && !replaceId) {
       openReplaceOverlay();
     } else if (data.error === 'duplicate_name') {
@@ -502,7 +508,10 @@
     winnerEl.textContent = '';
     clearRarity();
 
-    const fetchPromise = fetch('/api/spin', {method: 'POST'}).then(async r => {
+    const fetchPromise = fetch('/api/spin', {
+      method: 'POST',
+      credentials: 'same-origin',
+    }).then(async r => {
       if (r.status === 403) return null;
       if (!r.ok) return null;
       try {
