@@ -104,8 +104,16 @@
       summary.innerHTML = 'You: rank <em>#' + you.rank + '</em> — <em>' + you.tokens + '</em> tokens';
     }
 
+    const prevBody = board.querySelector('.board-body');
+    const prevScroll = prevBody ? prevBody.scrollTop : 0;
+
     if(!data.entries || !data.entries.length){
       board.innerHTML = '<div class="board-error">No players yet.</div>';
+      const sync = document.getElementById('lastSync');
+      if(sync){
+        const t = new Date();
+        sync.textContent = 'Refreshed ' + t.toLocaleTimeString([], {hour:'2-digit', minute:'2-digit', second:'2-digit'});
+      }
       return;
     }
 
@@ -137,6 +145,14 @@
     board.innerHTML = '';
     board.appendChild(head);
     board.appendChild(body);
+
+    const maxScroll = Math.max(0, body.scrollHeight - body.clientHeight);
+    body.scrollTop = Math.min(prevScroll, maxScroll);
+
+    requestAnimationFrame(function(){
+      const max2 = Math.max(0, body.scrollHeight - body.clientHeight);
+      body.scrollTop = Math.min(prevScroll, max2);
+    });
 
     const sync = document.getElementById('lastSync');
     if(sync){
