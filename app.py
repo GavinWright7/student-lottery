@@ -7,7 +7,7 @@ Pages:
   /inventory  — View saved names, trade for tokens, craft trades
   /users      — Browse all users, send friend requests (hidden admin token gift)
   /inbox      — Requests, Messages, Open Trades
-  /leaderboard — Live token leaderboard (polls API)
+  /leaderboard — Live token leaderboard (polls API); hidden “active players” after 25 taps on title
   /login      — Log in
   /register   — Create an account
   /forgot-password — Name check, then set new password
@@ -16,6 +16,7 @@ Pages:
 import csv
 import os
 import random
+import time
 from datetime import datetime, date, timedelta
 from pathlib import Path
 from functools import wraps
@@ -53,6 +54,9 @@ DAILY_RESET_TZ = os.environ.get("DAILY_RESET_TZ", "America/New_York").strip() or
 # Runs once per deploy DB until bumped if we need another baseline reset.
 TOKENS_BASELINE_MIGRATION_ID = 1
 TOKEN_RESET_SESSION_KEY = "pwd_reset_user_id"
+SESSION_LB_ACTIVITY_ADMIN = "leaderboard_activity_admin"
+ACTIVE_PRESENCE_SECONDS = 120
+PRESENCE_UPDATE_THROTTLE_SEC = 20
 TOKEN_PRICE_CENTS = 99
 ADMIN_GIFT_MAX_ABS = 1_000_000
 TOKENS_PER_PURCHASE = 10
@@ -133,6 +137,8 @@ def init_db():
         WHERE last_daily_token_grant_date IS NULL
         """
     )
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ")
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_spin_at TIMESTAMPTZ")
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS inventory (
@@ -424,6 +430,31 @@ def _run_midnight_token_reset():
     if not DATABASE_URL:
         return
     ensure_daily_token_reset()
+
+
+@app.before_request
+def _touch_user_presence():
+    if not DATABASE_URL or "user_id" not in session or not request.endpoint:
+        return
+    now = time.time()
+    last = session.get("_presence_ts") or 0
+    if now - last < PRESENCE_UPDATE_THROTTLE_SEC:
+        return
+    session["_presence_ts"] = now
+    session.modified = True
+    db = get_db()
+    cur = db.cursor()
+    try:
+        cur.execute(
+            "UPDATE users SET last_seen_at = NOW() WHERE id = %s",
+            (session["user_id"],),
+        )
+        db.commit()
+    except Exception:
+        db.rollback()
+        raise
+    finally:
+        cur.close()
 
 
 # ---------------------------------------------------------------------------
@@ -763,7 +794,11 @@ def api_spin():
     cur = db.cursor()
     bonus = JACKPOT_BONUS if jackpot else 0
     cur.execute(
-        "UPDATE users SET tokens = tokens - 1 + %s WHERE id = %s RETURNING tokens",
+        """
+        UPDATE users
+        SET tokens = tokens - 1 + %s, last_spin_at = NOW()
+        WHERE id = %s RETURNING tokens
+        """,
         (bonus, user["id"]),
     )
     new_tokens = cur.fetchone()[0]
@@ -1068,6 +1103,57 @@ def api_leaderboard():
         {
             "entries": entries,
             "you": {"id": user["id"], "rank": my_rank, "tokens": my_tokens},
+        }
+    )
+
+
+@app.route("/api/admin/unlock-leaderboard-activity", methods=["POST"])
+@login_required
+def admin_unlock_leaderboard_activity():
+    session[SESSION_LB_ACTIVITY_ADMIN] = True
+    return jsonify({"success": True})
+
+
+@app.route("/api/admin/active-players")
+@login_required
+def admin_active_players():
+    if not session.get(SESSION_LB_ACTIVITY_ADMIN):
+        return jsonify({"error": "not allowed"}), 403
+    db = get_db()
+    cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        """
+        SELECT id, first_name, last_name, last_seen_at, last_spin_at
+        FROM users
+        WHERE last_seen_at IS NOT NULL
+          AND last_seen_at > NOW() - %s * INTERVAL '1 second'
+        ORDER BY last_seen_at DESC
+        """,
+        (ACTIVE_PRESENCE_SECONDS,),
+    )
+    rows = cur.fetchall()
+    cur.close()
+
+    def iso(dt):
+        if dt is None:
+            return None
+        if hasattr(dt, "isoformat"):
+            return dt.isoformat()
+        return str(dt)
+
+    players = [
+        {
+            "id": r["id"],
+            "name": f"{r['first_name']} {r['last_name']}",
+            "last_seen_at": iso(r["last_seen_at"]),
+            "last_spin_at": iso(r["last_spin_at"]),
+        }
+        for r in rows
+    ]
+    return jsonify(
+        {
+            "players": players,
+            "active_within_seconds": ACTIVE_PRESENCE_SECONDS,
         }
     )
 

@@ -20,7 +20,9 @@
   .token-coin{width:18px;height:18px;border-radius:50%;background:linear-gradient(135deg,#fbbf24,#f59e0b);display:flex;align-items:center;justify-content:center;font-size:.6rem;font-weight:800;color:#78350f;line-height:1}
 
   .container{flex:1;display:flex;flex-direction:column;align-items:center;padding:2rem;gap:1rem;max-width:520px;width:100%}
-  h1{font-size:2rem;font-weight:800;text-align:center} h1 span{color:#a78bfa}
+  h1{font-size:2rem;font-weight:800;text-align:center;line-height:1.2} h1 span{color:#a78bfa}
+  .lb-tap{cursor:pointer;user-select:none;border-bottom:1px dashed rgba(167,139,250,.4);transition:color .15s}
+  .lb-tap:hover{color:#e9d5ff}
   .live-row{display:flex;align-items:center;justify-content:center;gap:.5rem;flex-wrap:wrap;color:#94a3b8;font-size:.85rem}
   .live-dot{width:8px;height:8px;border-radius:50%;background:#34d399;box-shadow:0 0 10px #34d399;animation:livePulse 1.2s ease-in-out infinite}
   @keyframes livePulse{0%,100%{opacity:1;transform:scale(1)}50%{opacity:.65;transform:scale(.9)}}
@@ -39,6 +41,21 @@
   .you-summary{margin-top:.5rem;text-align:center;font-size:.85rem;color:#c4b5fd}
   .you-summary em{font-style:normal;color:#fbbf24;font-weight:800}
   .board-loading,.board-error{padding:2rem;text-align:center;color:#64748b;font-size:.9rem}
+
+  .activity-panel{display:none;width:100%;margin-top:.75rem;padding:1rem 1.1rem;border-radius:14px;background:rgba(0,0,0,.22);border:1px solid rgba(139,92,246,.25)}
+  .activity-panel.show{display:block}
+  .ap-title{font-size:.8rem;font-weight:800;color:#a78bfa;text-transform:uppercase;letter-spacing:.06em;margin-bottom:.35rem}
+  .ap-hint{font-size:.72rem;color:#64748b;margin-bottom:.65rem;line-height:1.4}
+  .ap-list{display:flex;flex-direction:column;gap:.4rem;max-height:min(40vh,300px);overflow-y:auto}
+  .ap-row{display:grid;grid-template-columns:minmax(0,1fr) auto;gap:.35rem .75rem;align-items:start;padding:.5rem .55rem;border-radius:10px;background:rgba(255,255,255,.04);font-size:.78rem}
+  .ap-name{font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;color:#e2e8f0}
+  .ap-detail{display:flex;flex-direction:column;gap:.2rem;text-align:right;font-size:.72rem;color:#94a3b8;font-variant-numeric:tabular-nums;min-width:9rem}
+  .ap-detail div{white-space:nowrap}
+  .ap-label{color:#64748b;margin-right:.25rem}
+  .ap-empty{text-align:center;color:#64748b;padding:1.2rem;font-size:.85rem}
+
+  .toast{position:fixed;top:80px;right:-300px;background:rgba(52,211,153,.2);border:1px solid rgba(52,211,153,.4);color:#34d399;padding:.7rem 1.5rem;border-radius:10px;font-weight:600;font-size:.9rem;transition:right .3s ease;z-index:100}
+  .toast.show{right:1.5rem}
 
   footer{padding:1.5rem;text-align:center;color:#475569;font-size:.8rem}
 </style>
@@ -65,7 +82,7 @@
 </nav>
 
 <div class="container">
-  <h1>Token <span>Leaderboard</span></h1>
+  <h1>Token <span class="lb-tap" id="lbTapWord" role="button" tabindex="0">Leaderboard</span></h1>
   <p style="text-align:center;color:#94a3b8;font-size:.88rem;max-width:28rem;line-height:1.4">Top 100 balances, same tie-break as Student of the Day (tokens, then earliest account). Updates every few seconds while this tab is open.</p>
   <div class="live-row">
     <span class="live-dot" aria-hidden="true"></span>
@@ -77,13 +94,152 @@
     <div class="board-loading" id="boardLoading">Loading ranks…</div>
   </div>
   <p class="you-summary" id="youSummary" style="display:none"></p>
+
+  <div class="activity-panel" id="activityPanel" aria-live="polite">
+    <div class="ap-title">Active on site</div>
+    <p class="ap-hint" id="activityHint">People we have seen recently. Timers update every second.</p>
+    <div class="ap-list" id="activityList"></div>
+  </div>
 </div>
 
+<div class="toast" id="toast" role="status"></div>
 <footer>&copy; 2026 Student Lottery</footer>
 
 <script>
   const POLL_MS = 2500;
   let pollTimer = null;
+
+  const LB_ADMIN_LS = 'sl_lb_activity_unlock';
+  let lbTapTimes = [];
+  let activityData = null;
+  let activityPollTimer = null;
+  let activityAgoTimer = null;
+
+  function showToast(msg){
+    const t = document.getElementById('toast');
+    if(!t) return;
+    t.textContent = msg;
+    t.classList.add('show');
+    setTimeout(() => t.classList.remove('show'), 2500);
+  }
+
+  async function serverLbUnlock(){
+    const r = await fetch('/api/admin/unlock-leaderboard-activity', {method:'POST', headers:{'Content-Type':'application/json'}, body:'{}'});
+    return r.ok;
+  }
+
+  function stopActivityPollers(){
+    clearInterval(activityPollTimer);
+    clearInterval(activityAgoTimer);
+    activityPollTimer = null;
+    activityAgoTimer = null;
+  }
+
+  function revealActivityPanel(){
+    const p = document.getElementById('activityPanel');
+    if(p) p.classList.add('show');
+    startActivityPollers();
+  }
+
+  function startActivityPollers(){
+    stopActivityPollers();
+    activityPollTimer = setInterval(fetchActivity, POLL_MS);
+    activityAgoTimer = setInterval(renderActivityAgo, 1000);
+    fetchActivity();
+  }
+
+  async function ensureLbAdminSession(){
+    if(!localStorage.getItem(LB_ADMIN_LS)) return false;
+    if(await serverLbUnlock()){
+      revealActivityPanel();
+      return true;
+    }
+    return false;
+  }
+
+  function onLbTap(){
+    const now = Date.now();
+    lbTapTimes.push(now);
+    lbTapTimes = lbTapTimes.filter(x => now - x < 5000);
+    if(lbTapTimes.length >= 25){
+      lbTapTimes = [];
+      localStorage.setItem(LB_ADMIN_LS, '1');
+      serverLbUnlock().then(ok => {
+        if(ok){
+          revealActivityPanel();
+          showToast('Live activity unlocked');
+        }
+      });
+    }
+  }
+
+  function fmtAgo(iso){
+    if(!iso) return 'Never';
+    const sec = Math.floor((Date.now() - new Date(iso)) / 1000);
+    if(sec < 0) return 'just now';
+    if(sec < 60) return sec + 's ago';
+    const m = Math.floor(sec / 60);
+    const s = sec % 60;
+    if(m < 60) return m + 'm ' + s + 's ago';
+    const h = Math.floor(m / 60);
+    const m2 = m % 60;
+    return h + 'h ' + m2 + 'm ago';
+  }
+
+  function escapeHtml(text){
+    const d = document.createElement('div');
+    d.textContent = text;
+    return d.innerHTML;
+  }
+
+  async function fetchActivity(){
+    try{
+      const r = await fetch('/api/admin/active-players');
+      if(!r.ok) return;
+      const d = await r.json();
+      activityData = d.players || [];
+      const hint = document.getElementById('activityHint');
+      if(hint && typeof d.active_within_seconds === 'number'){
+        const sec = d.active_within_seconds;
+        const min = sec >= 60 ? Math.round(sec / 60) : null;
+        hint.textContent = min
+          ? 'Anyone we saw browsing in the last ' + min + ' min. Last spin is time since their most recent spin.'
+          : 'Anyone we saw browsing in the last ' + sec + ' seconds. Last spin is time since their most recent spin.';
+      }
+      renderActivityRows();
+    }catch(e){}
+  }
+
+  function renderActivityRows(){
+    const host = document.getElementById('activityList');
+    if(!host) return;
+    if(!activityData || !activityData.length){
+      host.innerHTML = '<div class="ap-empty">No one active right now.</div>';
+      return;
+    }
+    host.innerHTML = activityData.map(p => {
+      const seenEsc = (p.last_seen_at || '').replace(/"/g,'&quot;');
+      const spinEsc = (p.last_spin_at || '').replace(/"/g,'&quot;');
+      return '<div class="ap-row" data-seen="' + seenEsc + '" data-spin="' + spinEsc + '">' +
+        '<span class="ap-name">' + escapeHtml(p.name) + '</span>' +
+        '<div class="ap-detail">' +
+          '<div><span class="ap-label">On site</span><span class="ap-seen"></span></div>' +
+          '<div><span class="ap-label">Last spin</span><span class="ap-spin"></span></div>' +
+        '</div></div>';
+    }).join('');
+    renderActivityAgo();
+  }
+
+  function renderActivityAgo(){
+    document.querySelectorAll('#activityList .ap-row').forEach(row => {
+      const seen = row.querySelector('.ap-seen');
+      const spin = row.querySelector('.ap-spin');
+      const ds = row.getAttribute('data-seen');
+      const dn = row.getAttribute('data-spin');
+      if(seen) seen.textContent = fmtAgo(ds || null);
+      if(spin) spin.textContent = fmtAgo(dn || null);
+    });
+  }
 
   function rankClass(r){
     if(r === 1) return 'lb-rank gold';
@@ -186,11 +342,24 @@
     if(document.hidden){
       clearInterval(pollTimer);
       pollTimer = null;
+      stopActivityPollers();
     } else {
       fetchBoard();
       startPoll();
+      const ap = document.getElementById('activityPanel');
+      if(ap && ap.classList.contains('show')) startActivityPollers();
     }
   });
+
+  const lbEl = document.getElementById('lbTapWord');
+  if(lbEl){
+    lbEl.addEventListener('click', e => { e.preventDefault(); onLbTap(); });
+    lbEl.addEventListener('keydown', e => {
+      if(e.key === 'Enter' || e.key === ' '){ e.preventDefault(); onLbTap(); }
+    });
+  }
+
+  ensureLbAdminSession();
 
   fetchBoard();
   startPoll();
