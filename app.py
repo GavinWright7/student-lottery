@@ -3,7 +3,7 @@ Student Lottery Web App
 =======================
 Pages:
   /spin       — Spend 1 token to spin for a random student name
-  /lottery    — Daily $50 cash winner (broadcast Tue–Sun); jackpot name match on spin
+  /lottery    — Daily most-tokens-gained winner; monthly top-balance winner ($50); jackpot name match on spin
   /inventory  — View saved names, trade for tokens, craft trades
   /users      — Browse all users, send friend requests (hidden admin token gift)
   /inbox      — Requests, Messages, Open Trades
@@ -49,7 +49,7 @@ if "channel_binding" in DATABASE_URL:
 
 CSV_FILE = "student_directory_names.csv"
 FREE_TOKENS = 10
-# Calendar date used for daily token reset + leaderboard baseline (first request after local midnight).
+# Calendar date for contests, finalization, and presence (first request after local midnight in this TZ).
 DAILY_RESET_TZ = os.environ.get("DAILY_RESET_TZ", "America/New_York").strip() or "UTC"
 # Runs once per deploy DB until bumped if we need another baseline reset.
 TOKENS_BASELINE_MIGRATION_ID = 1
@@ -139,6 +139,10 @@ def init_db():
     )
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_seen_at TIMESTAMPTZ")
     cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS last_spin_at TIMESTAMPTZ")
+    cur.execute(
+        "ALTER TABLE users ADD COLUMN IF NOT EXISTS tokens_gained_today INTEGER NOT NULL DEFAULT 0"
+    )
+    cur.execute("ALTER TABLE users ADD COLUMN IF NOT EXISTS token_gain_tracking_date DATE")
 
     cur.execute("""
         CREATE TABLE IF NOT EXISTS inventory (
@@ -305,6 +309,47 @@ def init_db():
     cur.execute(
         "ALTER TABLE app_global_state ADD COLUMN IF NOT EXISTS data_migration_version INTEGER NOT NULL DEFAULT 0"
     )
+    cur.execute(
+        "ALTER TABLE app_global_state ADD COLUMN IF NOT EXISTS last_monthly_reset_date DATE"
+    )
+    cur.execute(
+        "ALTER TABLE app_global_state ADD COLUMN IF NOT EXISTS last_daily_gain_finalized DATE"
+    )
+
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS daily_token_gain_winners (
+            contest_date DATE PRIMARY KEY,
+            winner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            winner_name TEXT NOT NULL DEFAULT '',
+            tokens_gained INTEGER NOT NULL DEFAULT 0,
+            finalized_at TIMESTAMPTZ DEFAULT NOW()
+        );
+    """)
+    cur.execute("""
+        CREATE TABLE IF NOT EXISTS monthly_token_winners (
+            year INTEGER NOT NULL,
+            month INTEGER NOT NULL,
+            winner_user_id INTEGER REFERENCES users(id) ON DELETE SET NULL,
+            winner_name TEXT NOT NULL DEFAULT '',
+            winner_tokens INTEGER NOT NULL DEFAULT 0,
+            finalized_at TIMESTAMPTZ DEFAULT NOW(),
+            PRIMARY KEY (year, month)
+        );
+    """)
+
+    today_i = reset_calendar_date()
+    ms_i = date(today_i.year, today_i.month, 1)
+    yest_i = today_i - timedelta(days=1)
+    init_dgf = yest_i - timedelta(days=1)
+    cur.execute(
+        """
+        UPDATE app_global_state SET
+            last_monthly_reset_date = COALESCE(last_monthly_reset_date, %s),
+            last_daily_gain_finalized = COALESCE(last_daily_gain_finalized, %s)
+        WHERE id = 1
+        """,
+        (ms_i, init_dgf),
+    )
 
     conn.commit()
     cur.close()
@@ -319,7 +364,10 @@ def init_db():
     today_reset = reset_calendar_date()
     if mig < TOKENS_BASELINE_MIGRATION_ID:
         cur.execute(
-            "UPDATE users SET tokens = %s, last_daily_token_grant_date = %s",
+            """
+            UPDATE users SET tokens = %s, last_daily_token_grant_date = %s,
+                tokens_gained_today = 0, token_gain_tracking_date = NULL
+            """,
             (FREE_TOKENS, today_reset),
         )
         cur.execute(
@@ -387,36 +435,162 @@ def get_current_user():
     return user
 
 
-def ensure_daily_token_reset():
-    """Once per calendar day (DAILY_RESET_TZ): set every user's tokens to FREE_TOKENS (leaderboard follows)."""
-    if getattr(g, "_daily_token_reset_checked", False):
+def _tokens_from_row(row):
+    if row is None:
+        return None
+    if hasattr(row, "keys") and "tokens" in row:
+        return row["tokens"]
+    return row[0]
+
+
+def apply_user_token_delta(cur, user_id, delta, today):
+    """Change token balance. Positive delta also counts toward daily 'tokens gained' contest."""
+    if delta == 0:
+        cur.execute("SELECT tokens FROM users WHERE id = %s", (user_id,))
+        return _tokens_from_row(cur.fetchone())
+    if delta > 0:
+        pos = delta
+        cur.execute(
+            """
+            UPDATE users SET
+                tokens = tokens + %s,
+                tokens_gained_today = CASE
+                    WHEN token_gain_tracking_date IS NULL OR token_gain_tracking_date <> %s
+                    THEN %s
+                    ELSE tokens_gained_today + %s
+                END,
+                token_gain_tracking_date = %s
+            WHERE id = %s
+            RETURNING tokens
+            """,
+            (delta, today, pos, pos, today, user_id),
+        )
+    else:
+        cur.execute(
+            """
+            UPDATE users SET tokens = GREATEST(0, tokens + %s) WHERE id = %s RETURNING tokens
+            """,
+            (delta, user_id),
+        )
+    return _tokens_from_row(cur.fetchone())
+
+
+def _finalize_daily_token_gain_contest(cur, contest_date):
+    """Record winner for calendar day `contest_date` (most net tokens gained that day)."""
+    cur.execute(
+        """
+        SELECT id, first_name, last_name, tokens_gained_today
+        FROM users
+        WHERE token_gain_tracking_date = %s AND tokens_gained_today > 0
+        ORDER BY tokens_gained_today DESC, created_at ASC, id ASC
+        LIMIT 1
+        """,
+        (contest_date,),
+    )
+    w = cur.fetchone()
+    if not w:
         return
-    g._daily_token_reset_checked = True
+    winner_name = f"{w[1]} {w[2]}"
+    cur.execute(
+        """
+        INSERT INTO daily_token_gain_winners
+            (contest_date, winner_user_id, winner_name, tokens_gained)
+        VALUES (%s, %s, %s, %s)
+        ON CONFLICT (contest_date) DO NOTHING
+        """,
+        (contest_date, w[0], winner_name, w[3]),
+    )
+
+
+def ensure_token_period_maintenance():
+    """Finalize daily gain contests, then monthly balance reset + monthly winner (DAILY_RESET_TZ dates)."""
+    if getattr(g, "_token_period_checked", False):
+        return
+    g._token_period_checked = True
+    if not DATABASE_URL:
+        return
+    today = reset_calendar_date()
+    month_start = date(today.year, today.month, 1)
+    yesterday = today - timedelta(days=1)
     db = get_db()
     cur = db.cursor()
-    today = reset_calendar_date()
     try:
         cur.execute("BEGIN")
         cur.execute("SELECT pg_advisory_xact_lock(928374651)")
-        cur.execute("SELECT last_token_reset_date FROM app_global_state WHERE id = 1 FOR UPDATE")
-        row = cur.fetchone()
-        if row and row[0] >= today:
-            db.commit()
-            return
         cur.execute(
-            "UPDATE users SET tokens = %s, last_daily_token_grant_date = %s",
-            (FREE_TOKENS, today),
+            """
+            SELECT last_monthly_reset_date, last_daily_gain_finalized
+            FROM app_global_state WHERE id = 1 FOR UPDATE
+            """
         )
-        if row:
+        row = cur.fetchone()
+        if not row:
             cur.execute(
-                "UPDATE app_global_state SET last_token_reset_date = %s WHERE id = 1",
-                (today,),
+                "INSERT INTO app_global_state (id, last_token_reset_date) VALUES (%s, %s)",
+                (1, today),
             )
-        else:
             cur.execute(
-                "INSERT INTO app_global_state (id, last_token_reset_date) VALUES (1, %s)",
-                (today,),
+                """
+                SELECT last_monthly_reset_date, last_daily_gain_finalized
+                FROM app_global_state WHERE id = 1 FOR UPDATE
+                """
             )
+            row = cur.fetchone()
+
+        last_m = row[0]
+        last_dgf = row[1]
+
+        if last_m is None:
+            cur.execute(
+                "UPDATE app_global_state SET last_monthly_reset_date = %s WHERE id = 1",
+                (month_start,),
+            )
+            last_m = month_start
+
+        seed = (last_dgf if last_dgf is not None else (yesterday - timedelta(days=1)))
+        d = seed
+        while d < yesterday:
+            d = d + timedelta(days=1)
+            _finalize_daily_token_gain_contest(cur, d)
+
+        cur.execute(
+            "UPDATE app_global_state SET last_daily_gain_finalized = %s WHERE id = 1",
+            (yesterday,),
+        )
+
+        if month_start > last_m:
+            y, m = last_m.year, last_m.month
+            cur.execute(
+                """
+                SELECT id, first_name, last_name, tokens FROM users
+                ORDER BY tokens DESC, created_at ASC, id ASC
+                LIMIT 1
+                """
+            )
+            top = cur.fetchone()
+            if top:
+                cur.execute(
+                    """
+                    INSERT INTO monthly_token_winners
+                        (year, month, winner_user_id, winner_name, winner_tokens)
+                    VALUES (%s, %s, %s, %s, %s)
+                    ON CONFLICT (year, month) DO NOTHING
+                    """,
+                    (y, m, top[0], f"{top[1]} {top[2]}", top[3]),
+                )
+            cur.execute("DELETE FROM published_decks")
+            cur.execute(
+                """
+                UPDATE users SET tokens = %s, tokens_gained_today = 0,
+                    token_gain_tracking_date = NULL, last_daily_token_grant_date = %s
+                """,
+                (FREE_TOKENS, today),
+            )
+            cur.execute(
+                "UPDATE app_global_state SET last_monthly_reset_date = %s WHERE id = 1",
+                (month_start,),
+            )
+
         db.commit()
     except Exception:
         db.rollback()
@@ -429,7 +603,7 @@ def ensure_daily_token_reset():
 def _run_midnight_token_reset():
     if not DATABASE_URL:
         return
-    ensure_daily_token_reset()
+    ensure_token_period_maintenance()
 
 
 @app.before_request
@@ -458,106 +632,38 @@ def _touch_user_presence():
 
 
 # ---------------------------------------------------------------------------
-# Student of the Day logic
+# Daily / monthly contest display (finalization in ensure_token_period_maintenance)
 # ---------------------------------------------------------------------------
 
+def _yesterday_contest_date():
+    return reset_calendar_date() - timedelta(days=1)
+
+
 def get_broadcast_winner_row_readonly():
-    """Today's daily-winner row if it exists. Does not mutate DB (safe for /api/spin)."""
-    today = date.today()
+    """Yesterday's 'most tokens gained' winner (for spin jackpot name match). Read-only."""
+    y = _yesterday_contest_date()
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute(
         """
-        SELECT * FROM daily_winners
-        WHERE (broadcast_date IS NOT NULL AND broadcast_date = %s)
-           OR (broadcast_date IS NULL AND draw_date = %s)
+        SELECT winner_name, tokens_gained AS winner_tokens, contest_date AS draw_date
+        FROM daily_token_gain_winners WHERE contest_date = %s
         """,
-        (today, today),
+        (y,),
     )
     row = cur.fetchone()
     cur.close()
     return row
 
 
-def draw_student_of_the_day():
-    """Return the winner row shown today, creating it if needed (lottery / public API only).
-
-    Tue–Sun (not Mon): first call that day records yesterday's contest winner from top *tokens*
-    and today's broadcast. Player **inventory is never cleared** here—cards only leave via
-    discard, trade, or replace. Published decks reset when the new broadcast row is created.
-    """
-    today = date.today()
+def get_recent_daily_gain_winners(limit=7):
     db = get_db()
     cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
     cur.execute(
         """
-        SELECT * FROM daily_winners
-        WHERE (broadcast_date IS NOT NULL AND broadcast_date = %s)
-           OR (broadcast_date IS NULL AND draw_date = %s)
-        """,
-        (today, today),
-    )
-    row = cur.fetchone()
-    if row:
-        cur.close()
-        return row
-
-    # Monday = competition day only; name is revealed starting Tuesday for Mon's contest.
-    if today.weekday() == 0:
-        cur.close()
-        return None
-
-    cur.execute("DELETE FROM published_decks")
-
-    cur.execute(
-        """
-        SELECT id, first_name, last_name, tokens
-        FROM users ORDER BY tokens DESC, created_at ASC, id ASC
-        LIMIT 1
-        """
-    )
-    top_user = cur.fetchone()
-    if not top_user:
-        db.rollback()
-        cur.close()
-        return None
-
-    contest_date = today - timedelta(days=1)
-    winner_name = f"{top_user['first_name']} {top_user['last_name']}"
-    cur.execute(
-        """
-        INSERT INTO daily_winners (draw_date, broadcast_date, winner_user_id, winner_name, winner_tokens)
-        VALUES (%s, %s, %s, %s, %s)
-        ON CONFLICT (draw_date) DO NOTHING
-        RETURNING *
-        """,
-        (contest_date, today, top_user["id"], winner_name, top_user["tokens"]),
-    )
-    row = cur.fetchone()
-    db.commit()
-    if row:
-        cur.close()
-        return row
-    cur.execute(
-        """
-        SELECT * FROM daily_winners
-        WHERE (broadcast_date IS NOT NULL AND broadcast_date = %s)
-           OR (broadcast_date IS NULL AND draw_date = %s)
-        """,
-        (today, today),
-    )
-    row = cur.fetchone()
-    cur.close()
-    return row
-
-
-def get_recent_winners(limit=7):
-    db = get_db()
-    cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
-    cur.execute(
-        """
-        SELECT * FROM daily_winners
-        ORDER BY COALESCE(broadcast_date, draw_date) DESC, draw_date DESC
+        SELECT contest_date AS draw_date, winner_name, tokens_gained AS winner_tokens
+        FROM daily_token_gain_winners
+        ORDER BY contest_date DESC
         LIMIT %s
         """,
         (limit,),
@@ -565,6 +671,22 @@ def get_recent_winners(limit=7):
     rows = cur.fetchall()
     cur.close()
     return rows
+
+
+def get_latest_monthly_winner():
+    db = get_db()
+    cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        """
+        SELECT year, month, winner_name, winner_tokens
+        FROM monthly_token_winners
+        ORDER BY year DESC, month DESC
+        LIMIT 1
+        """
+    )
+    row = cur.fetchone()
+    cur.close()
+    return row
 
 
 # ---------------------------------------------------------------------------
@@ -793,15 +915,10 @@ def api_spin():
     db = get_db()
     cur = db.cursor()
     bonus = JACKPOT_BONUS if jackpot else 0
-    cur.execute(
-        """
-        UPDATE users
-        SET tokens = tokens - 1 + %s, last_spin_at = NOW()
-        WHERE id = %s RETURNING tokens
-        """,
-        (bonus, user["id"]),
-    )
-    new_tokens = cur.fetchone()[0]
+    delta = -1 + bonus
+    today = reset_calendar_date()
+    new_tokens = apply_user_token_delta(cur, user["id"], delta, today)
+    cur.execute("UPDATE users SET last_spin_at = NOW() WHERE id = %s", (user["id"],))
     db.commit()
     cur.close()
 
@@ -952,11 +1069,8 @@ def trade_for_tokens(item_id):
         cur.close()
         return jsonify({"error": "This card can only be discarded, not traded for tokens"}), 400
     cur.execute("DELETE FROM inventory WHERE id = %s", (item_id,))
-    cur.execute(
-        "UPDATE users SET tokens = tokens + %s WHERE id = %s RETURNING tokens",
-        (tokens_gained, user["id"]),
-    )
-    new_tokens = cur.fetchone()["tokens"]
+    today = reset_calendar_date()
+    new_tokens = apply_user_token_delta(cur, user["id"], tokens_gained, today)
     db.commit()
     cur.close()
     return jsonify({"success": True, "tokens_gained": tokens_gained, "tokens": new_tokens})
@@ -1009,43 +1123,72 @@ def payment_success():
     user = get_current_user()
     db = get_db()
     cur = db.cursor()
-    cur.execute(
-        "UPDATE users SET tokens = tokens + %s WHERE id = %s",
-        (TOKENS_PER_PURCHASE, user["id"]),
-    )
+    today = reset_calendar_date()
+    apply_user_token_delta(cur, user["id"], TOKENS_PER_PURCHASE, today)
     db.commit()
     cur.close()
     return redirect(url_for("spin_page"))
 
 
 # ---------------------------------------------------------------------------
-# Routes — Student of the Day
+# Routes — Lottery (daily gain + monthly balance winners)
 # ---------------------------------------------------------------------------
 
 @app.route("/lottery")
 @login_required
 def lottery_page():
     user = get_current_user()
-    winner = draw_student_of_the_day()
-    recent = get_recent_winners()
+    y = _yesterday_contest_date()
+    db = get_db()
+    cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        """
+        SELECT contest_date AS draw_date, winner_name, tokens_gained AS winner_tokens
+        FROM daily_token_gain_winners WHERE contest_date = %s
+        """,
+        (y,),
+    )
+    winner = cur.fetchone()
+    cur.close()
+    recent = get_recent_daily_gain_winners()
+    monthly_winner = get_latest_monthly_winner()
+    if monthly_winner:
+        mw = dict(monthly_winner)
+        mw["period_label"] = date(mw["year"], mw["month"], 1).strftime("%B %Y")
+        monthly_winner = mw
     badge = get_inbox_counts(user["id"])
-    return render_template("lottery.html", winner=winner, recent=recent,
-                           tokens=user["tokens"], inbox_badge=badge)
+    return render_template(
+        "lottery.html",
+        winner=winner,
+        recent=recent,
+        monthly_winner=monthly_winner,
+        tokens=user["tokens"],
+        inbox_badge=badge,
+    )
 
 
 @app.route("/api/lottery/today")
 def api_lottery_today():
-    winner = draw_student_of_the_day()
+    y = _yesterday_contest_date()
+    db = get_db()
+    cur = db.cursor(cursor_factory=psycopg2.extras.RealDictCursor)
+    cur.execute(
+        """
+        SELECT contest_date AS draw_date, winner_name, tokens_gained AS winner_tokens
+        FROM daily_token_gain_winners WHERE contest_date = %s
+        """,
+        (y,),
+    )
+    winner = cur.fetchone()
+    cur.close()
     if winner:
-        out = {
-            "draw_date": str(winner["draw_date"]),
-            "winner_name": winner["winner_name"],
-            "winner_tokens": winner["winner_tokens"],
-        }
-        bd = winner.get("broadcast_date")
-        if bd:
-            out["broadcast_date"] = str(bd)
-        return jsonify(out)
+        return jsonify(
+            {
+                "draw_date": str(winner["draw_date"]),
+                "winner_name": winner["winner_name"],
+                "winner_tokens": winner["winner_tokens"],
+            }
+        )
     return jsonify({})
 
 
@@ -1238,18 +1381,23 @@ def admin_gift_tokens():
     if not cur.fetchone():
         cur.close()
         return jsonify({"error": "user not found"}), 404
-    cur.execute(
-        """
-        UPDATE users SET tokens = GREATEST(0, tokens + %s)
-        WHERE id = %s
-        RETURNING tokens
-        """,
-        (amount, target_id),
-    )
-    row = cur.fetchone()
+    today = reset_calendar_date()
+    if amount > 0:
+        new_bal = apply_user_token_delta(cur, target_id, amount, today)
+        row = {"tokens": new_bal}
+    else:
+        cur.execute(
+            """
+            UPDATE users SET tokens = GREATEST(0, tokens + %s)
+            WHERE id = %s
+            RETURNING tokens
+            """,
+            (amount, target_id),
+        )
+        row = cur.fetchone()
     db.commit()
     cur.close()
-    new_bal = row["tokens"]
+    new_bal = _tokens_from_row(row)
     g._current_user_loaded = False
     g._current_user = None
     me = get_current_user()

@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Today's Winner</title>
+<title>Contest Winners — Student Lottery</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;800&display=swap" rel="stylesheet">
 <style>
@@ -84,6 +84,17 @@
   .winner-card.pending .pending-title{font-size:1.15rem;font-weight:700;color:#cbd5e1;margin-bottom:.6rem;position:relative;z-index:1}
   .winner-card.pending .pending-copy{font-size:.95rem;color:#94a3b8;line-height:1.5;max-width:26rem;position:relative;z-index:1}
 
+  .winner-card.monthly{
+    background:linear-gradient(145deg,rgba(167,139,250,.14),rgba(139,92,246,.05));
+    border-color:rgba(167,139,250,.45);min-height:240px;
+  }
+  .winner-card.monthly::before{
+    background:radial-gradient(circle,rgba(167,139,250,.1) 0%,transparent 60%);
+  }
+  .winner-card.monthly .prize{color:#c4b5fd}
+
+  .cards-stack{width:100%;display:flex;flex-direction:column;gap:1.5rem}
+
   .history{width:100%}
   .history h2{font-size:1.1rem;font-weight:700;margin-bottom:1rem;color:#94a3b8}
   .history-list{display:flex;flex-direction:column;gap:.6rem}
@@ -102,7 +113,7 @@
 <nav>
   <div class="nav-links">
     <a href="/spin">Spin</a>
-    <a href="/lottery" class="active">Today's Winner</a>
+    <a href="/lottery" class="active">Winners</a>
     <a href="/inventory">Inventory</a>
     <a href="/decks">Decks</a>
     <a href="/leaderboard">Leaderboard</a>
@@ -120,8 +131,8 @@
 </nav>
 
 <div class="container">
-  <h1>Daily <span>Winner</span></h1>
-  <p class="subtitle">Every contest day, <strong>whoever ends with the most tokens</strong> wins a <strong>real $50 cash prize</strong>. Their name is <strong>broadcast on this page for that whole calendar day</strong> (Tue&ndash;Sun). <strong>Mondays</strong> stay blank while tokens keep adding; the first visit <strong>after midnight into Tuesday</strong> locks the prior day and reveals Monday&rsquo;s winner for all of Tuesday, and so on through Sunday.</p>
+  <h1>Contest <span>Winners</span></h1>
+  <p class="subtitle"><strong>Daily:</strong> whoever earns the <strong>most tokens that calendar day</strong> (spins, trades, purchases, etc.) is posted here after the day closes. <strong>Monthly:</strong> whoever has the <strong>highest token balance</strong> when the month ends wins a <strong>$50 cash prize</strong>; then everyone&rsquo;s balance resets to 10 for the new month. All dates use the app&rsquo;s configured timezone.</p>
 
   <div class="countdown-section">
     <div class="countdown-label">Time until midnight (next calendar day)</div>
@@ -132,33 +143,52 @@
     </div>
   </div>
 
+  <div class="cards-stack">
   {% if winner %}
   <div class="winner-card">
     <div class="star">&#11088;</div>
-    <div class="prize">Official winner</div>
-    <div class="cash-prize">$50 cash prize</div>
+    <div class="prize">Daily — most tokens gained</div>
     <div class="name">{{ winner.winner_name }}</div>
     {% if winner.winner_tokens %}
-    <div class="date" style="font-size:1.1rem;color:#fbbf24;font-weight:700;margin:.4rem 0">{{ winner.winner_tokens }} tokens when locked</div>
+    <div class="date" style="font-size:1.1rem;color:#fbbf24;font-weight:700;margin:.4rem 0">+{{ winner.winner_tokens }} tokens earned that day</div>
     {% endif %}
-    <div class="date">Contest day: {{ winner.draw_date }}{% if winner.broadcast_date and winner.broadcast_date != winner.draw_date %} &middot; Announced {{ winner.broadcast_date }}{% endif %}</div>
+    <div class="date">Contest day: {{ winner.draw_date }}</div>
     <div class="hint">Spin their name on the wheel for 100 bonus tokens!</div>
   </div>
   {% else %}
   <div class="winner-card pending">
-    <div class="pending-title">Winner spot is open</div>
-    <p class="pending-copy">On Mondays this card stays empty. After midnight, the next calendar day (usually Tuesday) is when the app finalizes <strong>yesterday&rsquo;s</strong> token totals and <strong>posts the $50 cash winner&rsquo;s name here for that full day</strong>. Check back after midnight or refresh when the date rolls over.</p>
+    <div class="pending-title">Daily winner not posted yet</div>
+    <p class="pending-copy">After <strong>yesterday</strong> ends, the first visit to the site locks in who gained the most tokens that day. Refresh after midnight if you don&rsquo;t see a name yet.</p>
   </div>
   {% endif %}
 
+  {% if monthly_winner %}
+  <div class="winner-card monthly">
+    <div class="star">&#127942;</div>
+    <div class="prize">Monthly — highest balance</div>
+    <div class="cash-prize">$50 cash prize</div>
+    <div class="name">{{ monthly_winner.winner_name }}</div>
+    {% if monthly_winner.winner_tokens %}
+    <div class="date" style="font-size:1.05rem;color:#e9d5ff;font-weight:700;margin:.4rem 0">{{ monthly_winner.winner_tokens }} tokens at month end</div>
+    {% endif %}
+    <div class="date">{{ monthly_winner.period_label }}</div>
+  </div>
+  {% else %}
+  <div class="winner-card pending monthly">
+    <div class="pending-title">No monthly champion yet</div>
+    <p class="pending-copy">When a calendar month ends and balances reset, the player with the most tokens is recorded here.</p>
+  </div>
+  {% endif %}
+  </div>
+
   {% if recent %}
   <div class="history">
-    <h2>Past winners</h2>
+    <h2>Past daily winners (most gained)</h2>
     <div class="history-list">
       {% for w in recent %}
       <div class="history-item">
-        <span class="h-name">{{ w.winner_name }}{% if w.winner_tokens %} <span style="color:#fbbf24;font-size:.8rem">({{ w.winner_tokens }} tokens)</span>{% endif %}</span>
-        <span class="h-date">{% if w.broadcast_date %}Shown {{ w.broadcast_date }}{% else %}{{ w.draw_date }}{% endif %}</span>
+        <span class="h-name">{{ w.winner_name }}{% if w.winner_tokens %} <span style="color:#fbbf24;font-size:.8rem">(+{{ w.winner_tokens }})</span>{% endif %}</span>
+        <span class="h-date">{{ w.draw_date }}</span>
       </div>
       {% endfor %}
     </div>
